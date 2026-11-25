@@ -7,7 +7,7 @@ import {WorkflowMap} from "./WorkflowMap";
 import {useSearchParams,useRouter} from "next/navigation";
 import {useEffect,useId,useRef,useState} from "react";
 import type {ProductionView,ProductionDraft,Entity} from "@/studio/production";
-import {productionBudget} from "@/studio/production-schema";
+import {productionBudget,productionPlatforms} from "@/studio/production-schema";
 import {taskGuidance} from "@/studio/task-guidance";
 import {SingleBriefInput,emptyBrief} from "./SingleBriefInput";
 import {resolveBrief,type SingleBrief} from "@/studio/single-brief";
@@ -68,7 +68,7 @@ function Control({data,busy,act,queueOnly,connected,refresh}:{data:ProductionVie
     {!queueOnly&&<WorkflowMap tasks={data.queue} workerOnline={data.workerOnline}/>}
     <section><h2>{queueOnly?"执行队列":"继续处理"}</h2><details><summary>筛选任务</summary><div className="filters"><label>选题<input value={filter.q} onChange={e=>setFilter({...filter,q:e.target.value})}/></label>
       <label>账号<select value={filter.account} onChange={e=>setFilter({...filter,account:e.target.value})}><option value="">全部</option>{data.accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-      <label>平台<select value={filter.platform} onChange={e=>setFilter({...filter,platform:e.target.value})}><option value="">全部</option><option>小红书</option><option>抖音</option></select></label>
+      <label>平台<select value={filter.platform} onChange={e=>setFilter({...filter,platform:e.target.value})}><option value="">全部</option>{productionPlatforms.map(platform=><option key={platform}>{platform}</option>)}</select></label>
       <label>批次<select value={filter.batch} onChange={e=>setFilter({...filter,batch:e.target.value})}><option value="">全部</option>{data.batches.map(b=><option key={String(b.id)} value={String(b.id)}>{data.queue.find(t=>t.batch===b.id)?.topic||"创作批次"} · {new Date(b.created).toLocaleString("zh-CN")}</option>)}</select></label>
       <label>状态<select value={filter.status} onChange={e=>setFilter({...filter,status:e.target.value})}><option value="">全部</option>{["排队","整理资料","生成","审核","修订","待人工审核","已定稿","受阻","失败","已停止"].map(s=><option key={s}>{s}</option>)}</select></label></div></details>
       <div className="queue-list" id="queue-results" tabIndex={-1}><RestoreArticlePosition prefix="queue-" fallback="queue-results"/>{(queueOnly?rows:rows.slice(0,6)).map(t=><article id={"queue-"+t.id} tabIndex={-1} key={t.id} style={dropTarget===t.id?{borderTop:"3px solid #526747"}:undefined} draggable={t.status==="排队"&&!t.started} onDragStart={()=>setDrag(t.id)} onDragOver={e=>{e.preventDefault();setDropTarget(t.id);}} onDragEnd={()=>{setDrag(null);setDropTarget(null);}} onDrop={e=>{e.preventDefault();const origin=data.queue.find(r=>r.id===drag);if(origin?.batch===t.batch&&origin.status==="排队"&&!origin.started&&t.status==="排队"&&!t.started){const ids=data.queue.filter(r=>r.batch===t.batch&&r.status==="排队"&&!r.started).map(r=>r.id);void move(origin.id,ids.indexOf(t.id)-ids.indexOf(origin.id));}setDrag(null);setDropTarget(null);}}>
@@ -174,7 +174,7 @@ function BatchDrafts({data,busy,connected,act,added,notify}:{data:ProductionView
       <legend>第 {index+1} 行</legend>
       <div className="draft-fields">
         <AccountPicker accounts={data.accounts} value={row.account} onChoose={account=>update(row.id,accountDefaults(account))}/>
-        <label>平台<select value={row.platform} onChange={e=>update(row.id,{platform:e.target.value as ProductionDraft["platform"]})}><option value="">请选择</option><option>小红书</option><option>抖音</option></select></label>
+        <label>平台<select value={row.platform} onChange={e=>update(row.id,{platform:e.target.value as ProductionDraft["platform"]})}><option value="">请选择</option>{productionPlatforms.map(platform=><option key={platform}>{platform}</option>)}</select></label>
         <label className="draft-topic">选题<input maxLength={240} value={row.topic} onChange={e=>update(row.id,{topic:e.target.value})}/></label>
         <label>内容类型<select value={row.kind} onChange={e=>update(row.id,{kind:e.target.value as ProductionDraft["kind"]})}>{kinds.filter(kind=>kind!=="自由文章").map(kind=><option key={kind}>{kind}</option>)}</select></label>
       </div>
@@ -333,7 +333,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
       <fieldset className="single-fields" disabled={busy||uploading} aria-label="单篇创作需求">
       <div className="draft-fields">
         {!free&&<><AccountPicker accounts={data.accounts} value={form.account} onChoose={chooseAccount}/>
-        <label>平台<select required value={form.platform} onChange={e=>change({platform:e.target.value as ProductionDraft["platform"]})}><option value="">请选择</option><option>小红书</option><option>抖音</option></select></label></>}
+        <label>平台<select required value={form.platform} onChange={e=>change({platform:e.target.value as ProductionDraft["platform"]})}><option value="">请选择</option>{productionPlatforms.map(platform=><option key={platform}>{platform}</option>)}</select></label></>}
         <label className="draft-topic">选题<input required maxLength={240} value={form.topic} onChange={e=>change({topic:e.target.value})}/></label>
       <label>内容类型<select value={form.kind} onChange={e=>change({kind:e.target.value as ProductionDraft["kind"]})}>{(free?["自由文章"]:kinds.filter(k=>k!=="自由文章")).map(k=><option key={k}>{k}</option>)}</select></label>
       </div>
@@ -438,7 +438,7 @@ function Management({data,kind,busy,act}:{data:ProductionView;kind:"account"|"ru
       <label>名称<input id="entity-name" required value={form.name} onChange={e=>editForm({...form,name:e.target.value})}/></label>
       <label>{kind==="account"?"业务说明":kind==="standard"?"维度与判断说明":"表达、结构与事实引用要求；正反例"}<textarea value={form.body} onChange={e=>editForm({...form,body:e.target.value})}/></label>
       <label>状态<select value={form.status} onChange={e=>editForm({...form,status:e.target.value as Entity["status"]})}>{["草稿","启用","停用","归档"].map(s=><option key={s}>{s}</option>)}</select></label>
-      <label>{kind==="account"?"默认平台":"适用平台"}<select value={form.platform} onChange={e=>editForm({...form,platform:e.target.value as Entity["platform"]})}><option value="">通用 / 未指定</option><option>小红书</option><option>抖音</option></select></label>
+      <label>{kind==="account"?"默认平台":"适用平台"}<select value={form.platform} onChange={e=>editForm({...form,platform:e.target.value as Entity["platform"]})}><option value="">通用 / 未指定</option>{productionPlatforms.map(platform=><option key={platform}>{platform}</option>)}</select></label>
       {kind==="account"?<><label>默认受众<input value={form.audience} onChange={e=>editForm({...form,audience:e.target.value})}/></label>
         <fieldset><legend>默认资料</legend>{data.references.map(r=><label key={r.id}><input type="checkbox" checked={form.sources.includes(r.id+"@"+r.version)} onChange={e=>editForm({...form,sources:e.target.checked?[...form.sources,r.id+"@"+r.version]:form.sources.filter(s=>s!==r.id+"@"+r.version)})}/>{r.title} v{r.version}</label>)}</fieldset>
         <fieldset><legend>关联规范</legend>{data.rules.filter(r=>r.status==="启用").map(r=><label key={r.id}><input type="checkbox" checked={form.rules.includes(r.id)} onChange={e=>editForm({...form,rules:e.target.checked?[...form.rules,r.id]:form.rules.filter(id=>id!==r.id)})}/>{r.name}</label>)}</fieldset></>:<>

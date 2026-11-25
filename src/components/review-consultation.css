@@ -9,6 +9,10 @@
 .consult-score[data-low=true],.consult-expert-score[data-low=true]{background:color-mix(in srgb,#de7555 22%,transparent)}
 .consult-summary{background:color-mix(in srgb,currentColor 6%,transparent)}
 .consult-summary p,.consult-discussion p{margin-top:6px}
+.consult-sticky{display:grid;gap:8px;min-width:0}
+.desk .consult-summary button{min-height:36px;padding-inline:6px}
+.consult-conflict-list{display:grid;gap:8px}
+.consult-conflict-heading h4{margin:0}
 .review-consultation [data-role=strategy]{--role:#d45e89}
 .review-consultation [data-role=language]{--role:#7878e6}
 .review-consultation [data-role=facts]{--role:#cc8c38}
@@ -41,7 +45,19 @@
 @media (min-width:1280px){
   .desk .article-workspace .article-columns.editor-layout[data-audit-open=true]{
     max-width:1450px;
-    grid-template-columns:minmax(0,1.45fr) minmax(360px,1fr);
+    grid-template-columns:minmax(0,1.23fr) minmax(415px,1fr);
+  }
+  .desk .content .article-workspace .editor-layout[data-audit-open=true] > .editor-review-panel {
+    --review-inset: 18px;
+    position:sticky; top:var(--review-inset); align-self:start;
+    padding:0; margin:0;
+    max-height:calc(100dvh - max(var(--review-inset),var(--review-viewport-top, var(--review-inset))) - var(--review-inset)); overflow-y:auto;
+    overscroll-behavior-y:contain; scrollbar-width:thin; scrollbar-gutter:stable;
+    scrollbar-color:color-mix(in srgb,var(--ink) 35%,transparent) transparent;
+  }
+  .consult-sticky {
+    position:sticky;top:0;z-index:2;
+    padding-block:6px; background:var(--surface);
   }
 }
 @container (max-width:330px){.consult-options{grid-template-columns:minmax(0,1fr)}}

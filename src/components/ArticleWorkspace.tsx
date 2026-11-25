@@ -12,6 +12,7 @@ import type {ArticleState} from "../studio/article-store";
 import type {Review} from "@/studio/eval";
 import {endingEditId,type LocalArticleEdit,type ReviewAnchor} from "@/types/multi-agent-review";
 import {ArticleReview} from "./ArticleReview";
+import {ChannelDistribution} from "./ChannelDistribution";
 import "./article-editor.css";
 
 
@@ -47,6 +48,10 @@ export function ArticleWorkspace({taskId,destination}:{taskId:string;destination
   </main>;
 }
 type FactAnchor={field:"title"|"body";offset:number;quote:string};
+function centerReviewRect(rect:DOMRect){
+  window.scrollTo({top:window.scrollY+rect.top+rect.height/2-window.innerHeight/2,
+    behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+}
 function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:string;returnTo?:string}){
   const [state,setState]=useState(initial),[title,setTitle]=useState(initial.draft?.title??initial.head.title);
   const [document,setDocument]=useState(initial.draft?.document??initial.head.document);
@@ -55,6 +60,30 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
   const [kind,setKind]=useState("case");
   const [auditOpen,setAuditOpen]=useState(()=>new URLSearchParams(location.search).has("review"));
   const auditJump=useRef(false);
+  const reviewPanel=useRef<HTMLElement>(null);
+  useEffect(()=>{
+    const panel=reviewPanel.current;
+    if(!auditOpen||!panel)return;
+    const desktop=matchMedia("(min-width:1280px)");
+    let frame=0,lastTop=-1;
+    function size(){
+      if(frame)return;
+      frame=requestAnimationFrame(()=>{
+        frame=0;
+        if(!desktop.matches||!panel)return;
+        const top=Math.max(0,Math.ceil(panel.getBoundingClientRect().top));
+        if(top!==lastTop){lastTop=top;panel.style.setProperty("--review-viewport-top",top+"px");}
+      });
+    }
+    size();
+    window.addEventListener("scroll",size,{passive:true});
+    window.addEventListener("resize",size);
+    return()=>{
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll",size);
+      window.removeEventListener("resize",size);
+    };
+  },[auditOpen]);
   const [locating,setLocating]=useState<{field:"title"|"body";quote:string;offset:number}|null>(()=>{
     const p=new URLSearchParams(location.search),field=p.get("field"),at=Number(p.get("at")),length=Number(p.get("length"));
     const source=initial.versions.find(v=>v.version===Number(p.get("version")));
@@ -63,7 +92,10 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
   }),[notice,setNotice]=useState("");
   useEffect(()=>{
     if(!locating||selected===state.head.version)return;
-    const frame=requestAnimationFrame(()=>window.document.querySelector(".history-anchor")?.scrollIntoView({block:"center"}));
+    const frame=requestAnimationFrame(()=>{
+      const mark=window.document.querySelector(".history-anchor");
+      if(mark)centerReviewRect(mark.getBoundingClientRect());
+    });
     return()=>cancelAnimationFrame(frame);
   },[locating,selected,state.head.version]);
   const titleRef=useRef<HTMLTextAreaElement>(null),stateRef=useRef(initial),flight=useRef(false),stopped=useRef(false);
@@ -196,7 +228,11 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
     const liveAt=selected===state.head.version?liveOffset(issue,current.current):issue.offset;
     if(liveAt===null){setNotice("当前草稿中的原句无法唯一定位，可在审核记录查看原文。");return;}
     setLocating({...issue,offset:liveAt});
-    if(issue.field==="title"&&selected===state.head.version){titleRef.current?.focus();titleRef.current?.setSelectionRange(liveAt,liveAt+issue.quote.length);}
+    if(issue.field==="title"&&selected===state.head.version&&titleRef.current){
+      const input=titleRef.current;
+      input.focus({preventScroll:true});input.setSelectionRange(liveAt,liveAt+issue.quote.length);
+      centerReviewRect(input.getBoundingClientRect());
+    }
   }
   function selectVersion(next:number){
     const version=next===state.head.version?undefined:String(next);
@@ -214,14 +250,14 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
     requestAnimationFrame(()=>{
       const summary=window.document.querySelector<HTMLElement>("#article-audit > summary");
       const visible=summary?.getBoundingClientRect();
-      if(visible&&(!matchMedia("(min-width:1550px)").matches||visible.top<8||visible.bottom>innerHeight-8))summary?.scrollIntoView({block:"start"});
+      if(visible&&(!matchMedia("(min-width:1280px)").matches||visible.top<8||visible.bottom>innerHeight-8))summary?.scrollIntoView({block:"start"});
       summary?.focus({preventScroll:true});
     });
   }
   function revealLoadedAudit(){
     if(!auditJump.current)return;
     auditJump.current=false;
-    if(!matchMedia("(min-width:1550px)").matches)
+    if(!matchMedia("(min-width:1280px)").matches)
       window.document.querySelector("#article-audit > summary")?.scrollIntoView({block:"start"});
   }
   function returnToBody(){
@@ -257,6 +293,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
       <div className="article-actions">
         <span role="status">{unsaved&&status==="已保存"?"等待自动保存…":status}</span>
         <button type="button" aria-controls="article-audit" aria-expanded={auditOpen} onClick={openAudit}>查看审核</button>
+        <ChannelDistribution key={version.version} taskId={taskId} version={version.version} dirtyMother={stale}/>
     {error&&unsaved&&<button onClick={()=>void saveDraft()} disabled={busy}>重试保存草稿</button>}
     {(!version.confirmed||stale)&&<button onClick={()=>void formal("publish")} disabled={busy||selected!==state.head.version||status==="保存中…"}>确认定稿</button>}
       </div>
@@ -311,7 +348,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
     <TaskBriefNotes taskId={taskId} endingInserted={state.head.endingInserted||state.draft?.baseVersion===selected&&state.draft.reviewEdits?.includes(endingEditId)} onGenerateEnding={selected===state.head.version?()=>applyEdit(endingEditId,async()=>({
       kind:"append",text:await generate({kind:"ending"}),
     })):undefined}/>
-    </div><aside className="editor-review-panel"><details id="article-audit" open={auditOpen} onToggle={e=>setAuditOpen(e.currentTarget.open)}><summary>查看审核与修改建议</summary>{auditOpen&&<ArticleReview key={taskId+":"+version.version} taskId={taskId} version={version.version} stale={stale} article={version}
+    </div><aside className="editor-review-panel" ref={reviewPanel}><details id="article-audit" open={auditOpen} onToggle={e=>setAuditOpen(e.currentTarget.open)}><summary>查看审核与修改建议</summary>{auditOpen&&<ArticleReview key={taskId+":"+version.version} taskId={taskId} version={version.version} stale={stale} article={version}
       authorView={{versions:state.versions,
         resolved:state.draft?.baseVersion===selected?state.draft.reviewEdits:undefined,
         onEdit:selected===state.head.version?(id,anchor,text)=>applyEdit(id,async()=>({kind:"replace",anchor,text})):undefined,
@@ -323,7 +360,17 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
 }
 function BodyEditor({initial,disabled,onChange,locate}:{initial:ArticleDocument;disabled:boolean;onChange:(d:ArticleDocument)=>void;locate:{quote:string;offset:number}|null}){
   const editor=usePlateEditor({plugins,value:initial});
-  useEffect(()=>{if(locate){const range=quoteRange(clean(editor.children),locate.quote,locate.offset);if(range){editor.tf.focus();editor.tf.select(range);requestAnimationFrame(()=>{const selection=window.getSelection();selection?.anchorNode?.parentElement?.scrollIntoView({block:"nearest"});});}}},[editor,locate]);
+  useEffect(()=>{
+    if(!locate)return;
+    const range=quoteRange(clean(editor.children),locate.quote,locate.offset);
+    if(!range)return;
+    editor.tf.focus();editor.tf.select(range);
+    const frame=requestAnimationFrame(()=>{
+      const selection=window.getSelection();
+      if(selection?.rangeCount)centerReviewRect(selection.getRangeAt(0).getBoundingClientRect());
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[editor,locate]);
   return <Plate editor={editor} onValueChange={({value})=>onChange(clean(value))}>
     <div className="article-toolbar" role="toolbar" aria-label="正文格式">
       {([['p','段落'],['h1','一级标题'],['h2','二级标题'],['li','列表'],['blockquote','引用']] as const).map(([type,label])=><button key={type} disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>{editor.tf.setNodes({type},{match:n=>editor.api.isBlock(n)});editor.tf.focus();}}>{label}</button>)}

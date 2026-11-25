@@ -25,10 +25,12 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
   const accordionId=useId();
   const [merge,setMerge]=useState<{id:string;text:string}|null>(null);
   const [all,setAll]=useState(false);
+  const [showSummary,setShowSummary]=useState(true);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const total=visual.experts.length?Math.round(visual.experts.reduce((n,e)=>n+e.score,0)/visual.experts.length):null;
   const exchanges=visual.exchanges;
+  const pendingConflicts=applied?0:visual.conflicts.filter(group=>!resolved.has(group.id)).length;
   const flight=useRef(false);
 
   async function apply(run:()=>Promise<void>){
@@ -41,11 +43,14 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
   }
 
   return <div className="review-consultation">
-    {total!==null&&<header className="consult-overview">
+    <div className="consult-sticky">{total!==null&&<header className="consult-overview">
       <div><h3>会诊总览</h3><p>文章 v{visual.version} · 按本次审核待处理项计算</p></div>
       <strong className="consult-score" data-low={total<65} aria-live="polite"><span>草稿处理进度分</span>{total}<small>/100</small></strong>
     </header>}
-    {visual.summary.length>0&&<section className="consult-summary"><h3>仲裁摘要</h3>{visual.summary.map(line=><p key={line}>{line}</p>)}</section>}
+    {visual.summary.length>0&&<section className="consult-summary">
+      <button type="button" aria-expanded={showSummary} aria-controls={accordionId+"-summary"} onClick={()=>setShowSummary(value=>!value)}>仲裁摘要</button>
+      <div id={accordionId+"-summary"} hidden={!showSummary}>{visual.summary.map(line=><p key={line}>{line}</p>)}</div>
+    </section>}</div>
     {visual.experts.map(expert=><section className="consult-expert" key={expert.role} data-role={expert.role}>
       <button type="button" className="consult-expert-toggle" aria-expanded={expanded===expert.role} aria-controls={accordionId+"-"+expert.role}
         onClick={()=>setExpanded(previous=>previous===expert.role?null:expert.role)}><Badge role={expert.role}/><strong className="consult-expert-score" data-low={expert.score<65}>{expert.score}<small>/100</small></strong></button>
@@ -62,12 +67,13 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
         </article>)}
       </div>
     </section>)}
-    {visual.conflicts.map(group=>{
+    {!!visual.conflicts.length&&<section className="consult-conflict-list"><h3>角色分歧 · {pendingConflicts} 处待裁决</h3>
+    {visual.conflicts.map((group,index)=>{
       const first=group.options[0];
       if(!first)return null;
       const resolvedGroup=applied||resolved.has(group.id);
       return <section key={group.id} className="consult-conflict">
-        <div className="consult-conflict-heading"><h3>角色分歧{applied?" · 已保存修订":""}</h3>{resolvedGroup&&<span role="status">已处理</span>}</div>
+        <div className="consult-conflict-heading"><h4>#{index+1}</h4>{resolvedGroup?<span role="status">已处理</span>:<span>待裁决</span>}</div>
         <blockquote>{first.anchor.quote}</blockquote>
         <div className="consult-options">{group.options.map(option=><article key={option.id} data-role={option.role}>
           <Badge role={option.role}/>
@@ -83,7 +89,7 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
           <button type="button" onClick={()=>setMerge(null)}>取消</button>
         </div>:onEdit&&!resolvedGroup&&<button type="button" onClick={()=>setMerge({id:group.id,text:first.anchor.quote})}>自定义合并</button>}
       </section>;
-    })}
+    })}</section>}
     {exchanges.length>0&&<section className="consult-discussion">
       <h3>专家辩论</h3>
       <ol>{(all?exchanges:exchanges.slice(0,3)).map(exchange=><li key={exchange.id}><Badge role={exchange.role}/><span className="consult-stance" data-stance={exchange.stance}>{stances[exchange.stance]}</span><p>{exchange.message}</p></li>)}</ol>

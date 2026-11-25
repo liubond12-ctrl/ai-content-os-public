@@ -2,6 +2,25 @@
 export function fixtureResponse(instruction,data){
  const input=data.input??data.request;
  const assessment={label:"普通",disputed:false,dimensions:{内容策略:"离线结构检查",表达质量:"明确虚构",内容结构:"按栏目组织",基础规范:"业务标准未配置"},issues:[],claims:[]};
+ if(instruction.startsWith("渠道派生 v1")){
+  const {variant}=data;
+  const common={variant,keywords:["写作练习","动作描写","校样"],cta:"在评论区写下你想精修的一句。"};
+  if(variant==="xiaohongshu")return {...common,
+   titles:["一句动作写出犹豫","蓝笔落桌怎么改","校样里的动作描写"],
+   body:"🖊️ 写作练习：把蓝笔放在校样旁，读者就有了能看见的动作。\n\n📌 风险演练原句：加我微信；这不是发布文案，请在复制前删掉这行。",
+   tags:["写作练习","动作描写","改稿","校样","语言表达","写作入门","怎样写动作","改写犹豫的句子"],
+   comments:[{question:"为什么先写动作？",answer:"我是本文作者，我想让读者先看到她做了什么。"},{question:"原句一定要改吗？",answer:"可以保留，取决于节奏取舍。"},{question:"从哪句练起？",answer:"试着删掉一句抽象评价，再补一个动作。"}]};
+  if(variant==="douyin-script")return {...common,title:"动作描写写作练习",
+   hooks:["蓝笔一放，犹豫就出来了。","同一句话，我改成了两种动作。","抽象句怎么改？先看纸角。"],
+   script:"[画面提示] 蓝笔和校样特写。\n你看，她没有说犹豫。她把同一行读了三遍。\n[重音停顿] 三遍。\n风险预检样例：绝对有效，交付前删掉这句。"};
+  if(variant==="douyin-post")return {...common,title:"蓝笔校样改写",slides:["第 1 页 · 从一句判断开始","第 2 页 · 她把蓝笔横放在校样旁。","第 3 页 · 标出你读到的动作。绝对有效是用于预检的虚构样例词。"]};
+  if(variant==="wechat")return {...common,title:"从一张校样说起：写作练习的三个观察点",
+   blocks:[{kind:"paragraph",text:"动作描写可以从手边的纸、笔和停顿开始。蓝笔落桌，是这次虚构校样的一个节点。"},
+    {kind:"quote",text:"蓝笔落在了桌上。"},
+    {kind:"highlight",text:"先让读者看到动作，再决定要不要解释感受。"},
+    {kind:"step",text:"第一步，圈出抽象判断。第二步，挑一个可见动作。第三步，读一遍改前改后。"},
+    {kind:"paragraph",text:"风险演练：稳赚不赔是待清理的营销承诺。"}]};
+ }
  if(instruction.startsWith("局部精修：写一句"))return {text:"如果是你，会用哪个动作表现她的犹豫？"};
  if(instruction.startsWith("局部精修：按建议"))return {text:"她把纸角压平，指尖沿着折痕缓慢滑过。"};
  if(instruction.startsWith("你是独立")){
@@ -42,9 +61,9 @@ export function fixtureResponse(instruction,data){
   const sections=names.map(name=>({name,text:name.includes("时长")?"约三十秒（估算）":spec.kind==="分镜脚本"?"镜头一："+text+"\n镜头二：她将修改后的文字放回桌上。":name==="配图计划"?"第一页：书桌与校样，突出修改动作。":text}));
   const body=sections.find(s=>["正文","口播正文","口播或对白"].includes(s.name));
   if(input.topic.includes("分歧演练"))body.text+="她停下来。她停下来。";
-  if(input.topic.includes("会诊演练"))body.text+="蓝笔落在了桌上。她看了很久。她理好了纸张。";
   if(input.topic.includes("核验演练"))body.text+="考试报名日期为2027年5月1日。";
-  if(input.topic.includes("长文演练"))body.text+="\n\n"+Array.from({length:30},(_,i)=>"第"+(i+1)+"段虚构观察：她比较修改前后的句子，记录动作如何改变读者注意的顺序。先写看得见的动作，再说明有限的判断，不把单个例子推广为普遍结论。").join("\n\n");
+  if(input.topic.includes("长文演练"))body.text+="\n\n"+Array.from({length:input.topic.includes("会诊演练")?120:30},(_,i)=>"第"+(i+1)+"段虚构观察：她比较修改前后的句子，记录动作如何改变读者注意的顺序。先写看得见的动作，再说明有限的判断，不把单个例子推广为普遍结论。").join("\n\n");
+  if(input.topic.includes("会诊演练"))body.text+=(input.topic.includes("长文演练")?"\n\n":"")+"蓝笔落在了桌上。她看了很久。她理好了纸张。";
   return {title:input.topic,citations:data.research.supported.map(s=>s.sourceId),sections};
  }
  if(data.body)return assessment;

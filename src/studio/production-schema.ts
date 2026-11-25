@@ -1,5 +1,8 @@
 import {z} from "zod";
 
+export const productionPlatforms = ["小红书","抖音","公众号"] as const;
+export const productionPlatform = z.enum(["",...productionPlatforms]);
+
 export const contentKind=z.enum(["图文","口播稿","分镜脚本","自由文章"]);
 export const ruleSnapshot=z.object({
   id:z.string(),version:z.number().int(),name:z.string(),body:z.string(),hash:z.string(),
@@ -16,7 +19,7 @@ export function productionBudget(kind:z.infer<typeof contentKind>,profile="prote
     notice:profile==="cloud_review"?"真实云端原创验收：本次未设总费用上限；保留有限请求、超时及两轮修订保护":extended?"仅本机长文协作：预留多轮审核与修订，仍受任务及批次额度约束":"保守额度：800 Tokens 可能截断长文；实质分歧和多轮修订可能触顶，触顶转人工，不自动扩额"};
 }
 export const productionInput=z.object({
-  brand:z.literal("default"),account:z.string(),accountName:z.string(),accountDescription:z.string(),platform:z.string(),
+  brand:z.literal("default"),account:z.string(),accountName:z.string(),accountDescription:z.string(),platform:productionPlatform,
   kind:contentKind,outline:z.string().max(4000),requirements:z.string().max(4000),
   rules:z.array(ruleSnapshot),standards:z.array(ruleSnapshot),
   attachments:z.array(z.object({id:z.string(),name:z.string(),text:z.string().max(200000),source:z.string(),purpose:z.enum(["facts","style"]).optional()})),

@@ -5,7 +5,7 @@ import {z} from "zod";
 import {productionDb,entities,event} from "./production-db";
 import {brief,type Task,advance,lookup} from "./tasks";
 import {references,methodIndex} from "./library";
-import {contentKind,ruleSnapshot} from "./production-schema";
+import {contentKind,productionPlatform,ruleSnapshot} from "./production-schema";
 import {flow,control,tick,type Flow} from "./collaboration";
 import {productionBudget} from "./production-schema";
 import {readArticles} from "./article-store";
@@ -14,7 +14,7 @@ import {briefSuggestions,materialConflicts,resolveBrief,singleBrief} from "./sin
 const line=z.string().trim().max(4000);
 export const entitySchema=z.object({
   id:z.string().default(""),version:z.number().int().nonnegative().default(0),brand:z.literal("default").default("default"),
-  name:line.min(1),body:line.default(""),audience:line.default(""),platform:z.enum(["","小红书","抖音"]).default(""),
+  name:line.min(1),body:line.default(""),audience:line.default(""),platform:productionPlatform.default(""),
   sources:z.array(z.string()).default([]),rules:z.array(z.string()).default([]),
   status:z.enum(["草稿","启用","停用","归档"]).default("草稿"),
   account:z.string().default(""),goal:z.string().default(""),type:z.string().default(""),
@@ -24,7 +24,7 @@ export const entitySchema=z.object({
 export type Entity=z.infer<typeof entitySchema>;
 export const draftSchema=z.object({
   intent:z.enum(["draft","queued"]).default("draft"),id:z.uuid(),version:z.number().int().nonnegative(),account:z.string().default(""),
-  platform:z.enum(["","小红书","抖音"]).default(""),topic:line.max(240),goal:z.enum(["获客","品宣","自由表达"]).default("品宣"),
+  platform:productionPlatform.default(""),topic:line.max(240),goal:z.enum(["获客","品宣","自由表达"]).default("品宣"),
   budgetProfile:z.enum(["protected","local_extended","cloud_review"]).default("protected"),
   kind:contentKind,requirements:line.default(""),outline:line.default(""),audience:line.default(""),
   sources:z.array(z.string()).default([]),assets:z.array(z.uuid()).default([]),imagesRequired:z.boolean().default(false),
