@@ -1,6 +1,6 @@
 import {productionDb} from "./production-db";
 import {cruiseDay,morning} from "./autopilot";
-import {duePublications,proposals,samplePool} from "./calibration";
+import {duePublications,mergeableProposals} from "./calibration";
 import {fastlaneTables} from "./fastlane";
 import type {ReadinessTask} from "../types/readiness";
 import {editorHref} from "./article-navigation";
@@ -18,8 +18,7 @@ export function todayTasks():ReadinessTask[]{
       WHERE NOT EXISTS(SELECT 1 FROM cal_publications p WHERE p.task=d.task AND p.version=d.version)
       GROUP BY task,version HAVING count(*)=4 AND sum(state='ready')=4 ORDER BY max(touched) DESC`).all();
     const accounts=db.prepare("SELECT DISTINCT account FROM cal_proposals").all();
-    const merge=accounts.map(row=>String(row.account)).filter(account=>samplePool(db,account).length>=5)
-      .flatMap(account=>proposals(db,account).filter(proposal=>proposal.passed&&!proposal.appliedVersion));
+    const merge=accounts.flatMap(row=>mergeableProposals(db,String(row.account)));
     return [
       {label:"待拍板早报",count:pending,href:"/studio/settings/autopilot#cruise-morning"},
       {label:"已派生待发三端包",count:ready.length,href:ready.length?editorHref(String(ready[0].task),"/",{version:String(ready[0].version),distribution:"1"}):"/studio/settings/autopilot#cruise-ledger"},

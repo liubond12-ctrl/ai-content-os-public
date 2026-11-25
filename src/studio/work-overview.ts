@@ -10,7 +10,7 @@ export function workOverview(options:{q?:string;status?:string;account?:string;b
   const page=Math.max(1,Math.floor(Number.isFinite(options.page)?options.page||1:1)),size=25;
   const empty={counts:{} as Record<string,number>,total:0,todoCount:0,activeCount:0,recent:[] as RecentWork[],workerOnline:false,todos:[] as WorkTask[],active:[] as WorkTask[],groups:[] as {batch:string;name:string;count:number;running:number}[],rows:[] as WorkTask[],matched:0,page,size};
   const path=process.env.STUDIO_DB||"data/studio.sqlite";
-  if(!existsSync(path))return empty;
+  if(!existsSync(/*turbopackIgnore: true*/ path))return empty;
   const db=new DatabaseSync(path,{readOnly:true});
   try{
     // Keep the task and content indexes in the connection's cache while summarizing a large queue.

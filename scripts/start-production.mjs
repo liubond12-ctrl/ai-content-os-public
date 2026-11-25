@@ -6,9 +6,26 @@ import path from "node:path";
 const demo=process.argv.includes("--demo"),noWorker=process.argv.includes("--no-worker");
 const modelPort=process.env.STUDIO_DEMO_MODEL_PORT||"3587";
 const port=process.env.PORT||"3588",dir=path.resolve(process.env.STUDIO_DATA_DIR||(demo?"data-production-demo":"data"));
-if(demo&&!path.relative(path.resolve("data"),dir))throw Error("离线演练不能使用个人 data 目录");
+const inside=(root,target)=>{const relative=path.relative(root,target);return relative===""||!relative.startsWith(".."+path.sep)&&relative!==".."&&!path.isAbsolute(relative);};
+if(demo&&inside(path.resolve("data"),dir))throw Error("离线演练不能使用个人 data 目录及其子目录");
 mkdirSync(dir,{recursive:true});
-if(demo&&existsSync("data")&&!path.relative(realpathSync("data"),realpathSync(dir)))throw Error("离线演练不能使用个人 data 目录");
+if(demo&&existsSync("data")&&inside(realpathSync("data"),realpathSync(dir)))throw Error("离线演练不能使用个人 data 目录及其子目录");
+const marker=path.join(dir,".studio-demo"),database=path.join(dir,"studio.sqlite");
+let legacyDemo=false,otherData=false;
+if(existsSync(database)){
+ const db=new DatabaseSync(database,{readOnly:true});
+ try{
+   const exists=db.prepare("SELECT 1 FROM sqlite_master WHERE name='production_batches'").get();
+   if(exists){
+     const modes=db.prepare("SELECT DISTINCT mode FROM production_batches").all().map(row=>row.mode);
+     legacyDemo=modes.includes("离线示例");otherData=modes.some(mode=>mode!=="离线示例");
+   }
+ }finally{db.close();}
+}
+if(!demo&&(existsSync(marker)||legacyDemo))throw Error("真实模式不能使用离线演练数据库");
+if(demo&&(otherData||!existsSync(marker)&&!legacyDemo&&["studio.sqlite","content-library.sqlite"].some(name=>existsSync(path.join(dir,name)))))
+ throw Error("离线演练需使用新的数据目录或已标记的演练目录");
+if(demo&&!existsSync(marker))writeFileSync(marker,"demo\n",{flag:"wx"});
 const keyFile=path.join(dir,"worker.key");
 if(!existsSync(keyFile))writeFileSync(keyFile,randomBytes(32).toString("hex"));
 const env={...process.env,STUDIO_DATA_DIR:dir,STUDIO_DB:path.join(dir,"studio.sqlite"),STUDIO_LIBRARY_DB:path.join(dir,"content-library.sqlite"),STUDIO_WORKER_KEY:readFileSync(keyFile,"utf8").trim(),STUDIO_WORKER_URL:"http://127.0.0.1:"+port,STUDIO_DEMO_INSTANCE:demo?"1":"0"};
@@ -22,6 +39,11 @@ if(demo)Object.assign(env,{STUDIO_QUEUE_LEASE_MS:"15000",STUDIO_MODEL:"v2-local-
   STUDIO_PYTHON_BGE_HEALTH:"http://127.0.0.1:"+modelPort+"/bge-health",STUDIO_MODEL_KEY:"",STUDIO_FEISHU_SCOPE:"null",STUDIO_FEISHU_TOKEN:"",STUDIO_EXPERIMENT_DB:path.join(dir,"experiments/lamp-deepseek-once.sqlite")});
 if(demo)Object.assign(env,{FEISHU_CARD_WORKBENCH:env.STUDIO_WORKER_URL,FEISHU_CARD_WORKER_KEY:env.STUDIO_WORKER_KEY,FEISHU_RETRO_SEND_APPROVED:"0",
   FEISHU_CARD_LIVE_APPROVED:"0",FEISHU_MORNING_SEND_APPROVED:"0",FEISHU_LEDGER_WRITE_APPROVED:"0"});
+if(demo){
+ const guard=path.resolve("scripts/demo-network-guard.cjs").replaceAll("\\","/");
+ env.NODE_OPTIONS=[process.env.NODE_OPTIONS,"--require=\""+guard+"\""].filter(Boolean).join(" ");
+ env.STUDIO_DEMO_NET_LOG=path.join(dir,"network-guard.jsonl");
+}
 const children=[];
 function start(args){const c=spawn(process.execPath,args,{windowsHide:true,stdio:"inherit",env});children.push(c);return c;}
 if(demo&&!process.argv.includes("--no-model"))start(["scripts/production-demo-model.mjs"]);

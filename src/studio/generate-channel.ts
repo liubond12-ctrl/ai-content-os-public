@@ -3,6 +3,9 @@ import {DerivationConflict,readDerivation,writeDerivation} from "./channel-deriv
 import {articleSubject} from "./eval";
 import {productionBudget} from "./production-schema";
 import {localProvider} from "./provider";
+import {articleStateInTransaction} from "./article-store";
+import {lockPrediction} from "./calibration";
+import {productionDb} from "./production-db";
 
 export class DerivationPermission extends Error {}
 const generating=new Set<string>();
@@ -22,6 +25,14 @@ export async function generateChannel(taskId:string,articleVersion:number,varian
       throw new DerivationConflict("渠道稿已有新修订，请先重新载入。");
     const {task,title,body}=articleSubject(taskId,articleVersion),production=task.input.production;
     if(production?.mode==="真实云端"&&!allowCloud)throw new DerivationPermission("请确认将正式母稿提交给云端模型");
+    const db=productionDb();
+    try{
+      db.exec("BEGIN IMMEDIATE");
+      const state=articleStateInTransaction(db,taskId);
+      if(automatic&&state.head.version!==articleVersion)throw new DerivationConflict("母稿已切版，请重新审核后再生成");
+      lockPrediction(db,{task:taskId,version:articleVersion},state);
+      db.exec("COMMIT");
+    }finally{db.close();}
     const cap=production?productionBudget(production.kind,production.budget?.profile).output:2800;
     const provider=localProvider({task,professional:true,purpose:"distribution",automation:automatic?"fastlane":undefined,maxTokens:Math.min(variant==="wechat"?4200:2600,cap)});
     const output=await provider.json(
@@ -29,6 +40,6 @@ export async function generateChannel(taskId:string,articleVersion:number,varian
       {variant,title,body});
     const content=channelContent.parse(output);
     if(content.variant!==variant)throw Error("模型返回了其他渠道的格式。");
-    return writeDerivation(taskId,articleVersion,revision,content);
+    return writeDerivation(taskId,articleVersion,revision,content,automatic);
   }finally{generating.delete(key);}
 }

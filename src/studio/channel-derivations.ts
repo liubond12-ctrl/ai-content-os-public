@@ -1,6 +1,6 @@
 import {DatabaseSync} from "node:sqlite";
 import {channelContent,type ChannelContent,type ChannelDerivation,type ChannelVariant} from "../types/channel-derivation";
-import {readArticles,ArticleUnavailable} from "./article-store";
+import {readArticles,articleStateInTransaction,ArticleUnavailable} from "./article-store";
 import {recordLedgerChannel} from "./feishu-ledger";
 
 export const channelRulesVersion="channel-derivation-v1";
@@ -37,12 +37,14 @@ export function readDerivation(taskId:string,articleVersion:number,variant:Chann
   try{return latest(db,taskId,articleVersion,variant);}finally{db.close();}
 }
 
-export function writeDerivation(taskId:string,articleVersion:number,revision:number,raw:ChannelContent):ChannelDerivation{
+export function writeDerivation(taskId:string,articleVersion:number,revision:number,raw:ChannelContent,requireCurrent=false):ChannelDerivation{
   channelSource(taskId,articleVersion);
   const content=channelContent.parse(raw);
   const db=database();
   try{
     db.exec("BEGIN IMMEDIATE");
+    if(requireCurrent&&articleStateInTransaction(db,taskId).head.version!==articleVersion)
+      throw new DerivationConflict("母稿已切版，请重新审核后再生成");
     if((latest(db,taskId,articleVersion,content.variant)?.revision??0)!==revision)
       throw new DerivationConflict("渠道稿已在其他窗口更新。当前输入仍保留，请复制或核对后重新载入。");
     const updatedAt=new Date().toISOString(),next=revision+1;

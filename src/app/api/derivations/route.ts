@@ -36,14 +36,14 @@ export async function POST(request:Request){
   const input=parsed.data;
   const {taskId,articleVersion,variant,revision}=input;
   try{
-    const db=productionDb();
-    try{
-      db.exec("BEGIN IMMEDIATE");
-      lockPrediction(db,{task:taskId,version:articleVersion},articleStateInTransaction(db,taskId));
-      db.exec("COMMIT");
-    }finally{db.close();}
     if(input.action==="save"){
       if(input.content.variant!==variant)return Response.json({error:"渠道内容与目标不一致"},{status:400});
+      const db=productionDb();
+      try{
+        db.exec("BEGIN IMMEDIATE");
+        lockPrediction(db,{task:taskId,version:articleVersion},articleStateInTransaction(db,taskId));
+        db.exec("COMMIT");
+      }finally{db.close();}
       return Response.json(writeDerivation(taskId,articleVersion,revision,input.content));
     }
     return Response.json(await generateChannel(taskId,articleVersion,variant,revision,input.allowCloud));

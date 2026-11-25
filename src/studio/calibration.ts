@@ -196,6 +196,11 @@ export function proposals(db:DatabaseSync,account:string):RubricBumpProposal[]{
   return db.prepare(`SELECT p.payload,a.version FROM cal_proposals p LEFT JOIN cal_applied a USING(id)
     WHERE p.account=? ORDER BY p.rowid DESC LIMIT 30`).all(account).map(row=>({...JSON.parse(String(row.payload)),appliedVersion:row.version??undefined}));
 }
+export function mergeableProposals(db:DatabaseSync,account:string){
+  if(!entities(db,"account").some(row=>row.id===account&&row.status==="启用"))return [];
+  const current=fingerprint(samplePool(db,account),ruleContext(db,account));
+  return proposals(db,account).filter(row=>row.passed&&!row.appliedVersion&&row.fingerprint===current);
+}
 export function applyProposal(db:DatabaseSync,account:string,id:string){
   if(!db.isTransaction)throw Error("规则须在事务中合并");
   const row=db.prepare("SELECT payload FROM cal_proposals WHERE id=? AND account=?").get(id,account);

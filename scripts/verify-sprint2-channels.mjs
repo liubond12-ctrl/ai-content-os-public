@@ -16,7 +16,7 @@ async function post(body){
 }
 const account=await post({action:"entity",kind:"account",value:{id:"channels-"+randomUUID(),name:"公开演示｜三端虚构账号",platform:"公众号",status:"启用",version:0}});
 async function seed(topic){
-  const draft=await post({action:"draft",value:{id:randomUUID(),version:0,account:account.id,platform:"公众号",topic,kind:"图文",goal:"品宣",budgetProfile:"local_extended",
+  const draft=await post({action:"draft",value:{id:randomUUID(),version:0,account:account.id,platform:"公众号",topic,kind:"图文",goal:"品宣",budgetProfile:"local_extended",experiment:"离线会诊与三端回归允许复用同题样稿",
     brief:{note:"用虚构的校样演示动作描写。",adjust:{},materials:[],articleRefs:[],failed:[]}}});
   const preview=await post({action:"preview",drafts:[draft]});
   const {firstTask}=await post({action:"single",id:randomUUID(),drafts:[draft],preview,tokenLimit:120000,requestLimit:32});

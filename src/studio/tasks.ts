@@ -58,7 +58,9 @@ function hydrateUsage(task:Task){
 }
 export function create(input:unknown){
   const task:Task={id:randomUUID(),revision:0,input:brief.parse(input),stage:"assemble",records:[]};
-  if(task.input.production?.draftId||task.input.production?.sourceMaterials||task.input.production?.bricks||task.input.production?.chapters)throw Error("装配资料和分章计划只由服务端队列添入");
+  const production=task.input.production;
+  if(production?.draftId||production?.sourceMaterials||production?.bricks||production?.chapters||production?.series||production?.seriesSources)
+    throw Error("装配资料、分章计划和连载只由服务端队列添入");
   if(task.input.environment || task.input.scenario)checkInput(task);
   persist(task); return task;
 }

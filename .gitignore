@@ -28,6 +28,9 @@ data/content-library.sqlite*
 !/docs/evidence/workbench/最后一张校样.md
 *.tsbuildinfo
 *.sqlite*
+worker.key
+.studio-demo
+network-guard.jsonl
 *.db
 *.key
 *.pem

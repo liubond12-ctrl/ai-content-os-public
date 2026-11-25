@@ -50,6 +50,8 @@ it("按母稿任务、正式版本和抖音形态隔离，旧修订写入失败�
   const newMother=changeArticle({action:"publish",taskId:id,baseVersion:3,revision:1,title:"新母稿",document:fromText("新内容")});
   expect(readDerivation(id,newMother.head.version,"douyin-script")).toBeNull();
   expect(readDerivation(id,3,"douyin-script")?.content).toMatchObject({title:"渠道修订"});
+  expect(()=>writeDerivation(id,3,2,{...script,title:"后台旧版本"},true)).toThrow("母稿已切版");
+  expect(readDerivation(id,3,"douyin-script")?.revision).toBe(2);
   expect(()=>readDerivation(id,999,"wechat")).toThrow("母稿版本不存在");
 });
 it("生成只发送正式正文，同源与渠道校验阻止错误写入，保存不调用模型",async()=>{

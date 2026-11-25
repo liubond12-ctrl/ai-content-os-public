@@ -22,6 +22,11 @@ const cache=new Map<string,Entry>(),pending=new Map<string,Promise<Feed>>();
 let cooldown=0;
 export async function readFeed(section:Section,story="",options:{all?:boolean;category?:string;cursor?:string}={}):Promise<Feed>{
   if(story&&!/^[a-zA-Z0-9_-]{1,100}$/.test(story))throw Error("事件标识无效");
+  if(process.env.STUDIO_DEMO_INSTANCE==="1"){
+    const local=process.env.STUDIO_WORKER_URL??"http://127.0.0.1:3588";
+    return {items:normalize({items:[{title:"离线样例 · 从纸角动作观察写法",summary:"模拟热点来源，适合练习选题转换。",source:{name:"本机模拟"},
+      links:{aihot:new URL("/hot?fixture=paper",local).href}}]}),time:Date.now(),error:""};
+  }
   const query=new URLSearchParams({mode:options.all?"all":"selected",window:"7d",by:"published",limit:"20"});
   if(options.category&&Object.hasOwn(categories,options.category))query.set("category",options.category);
   if(options.cursor)query.set("cursor",options.cursor.slice(0,2000));
