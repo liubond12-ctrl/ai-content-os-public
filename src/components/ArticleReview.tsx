@@ -4,11 +4,12 @@ import Link from "next/link";
 import type {Review} from "../studio/eval";
 import type {Flow} from "../studio/collaboration";
 import type {Opinion} from "../studio/professional-review";
-import {conflictGroups,exactRevision,reviewRoleLabels,type VersionText} from "../studio/discussion-reader";
+import {conflictGroups,exactRevision,type VersionText} from "../studio/discussion-reader";
+import {reviewVisual} from "../studio/review-visual";
+import {ReviewConsultation} from "./ReviewConsultation";
 type Anchor=Pick<Opinion["issue"],"field"|"quote"|"offset">;
-type AuthorView={versions:VersionText[];detailHref:string;returnToBody:()=>void;onReady:()=>void;onLocateVersion:(version:number,issue:Anchor)=>void;unmapped?:Anchor};
-const actions={retain:"保留原句",delete:"删除原句",replace:"替换原句"};
-const verdicts={accept:"采纳意见",merge:"合并意见",reject:"未采纳",human:"交作者取舍"};
+type AuthorView={versions:VersionText[];detailHref:string;returnToBody:()=>void;onReady:()=>void;onLocateVersion:(version:number,issue:Anchor)=>void;unmapped?:Anchor;resolved?:string[];onEdit?:(id:string,anchor:Anchor,text:string)=>Promise<void>;onRewrite?:(id:string,anchor:Anchor,suggestion:string)=>Promise<void>};
+
 export function ArticleReview({taskId,version,stale=false,article,onLocate,onDecide,authorView}:{taskId:string;version:number;article?:{title:string;body:string};stale?:boolean;onDecide?:(review:string,index:number,quote:string,replacement:string,reason:string)=>Promise<void>;onLocate?:(issue:Anchor)=>void;authorView?:AuthorView}){
   const [rows,setRows]=useState<Review[]>([]),[busy,setBusy]=useState(false),[error,warn]=useState("");
   const [ready,setReady]=useState(false),[flow,setFlow]=useState<Flow|null>(null);
@@ -96,26 +97,25 @@ export function ArticleReview({taskId,version,stale=false,article,onLocate,onDec
     const historical=authorView.versions.some(v=>v.version>version);
     const priorDispute=flow?.panels?.find(p=>p.id===current?.revisionReviewId&&conflictGroups(p).length>0);
     const disputed=panel&&conflictGroups(panel).length>0?panel:priorDispute;
-    const opinions=disputed?.reviews.flatMap(r=>r.opinions)??[];
-    const disputeIds=new Set(conflictGroups(disputed??{conflicts:[]}).flat());
-    const groups=disputed?conflictGroups(disputed):[];
     const base=authorView.versions.find(v=>v.version===disputed?.articleVersion);
     const applied=disputed&&base&&current&&exactRevision(disputed,base,current);
     const hasRecord=rows.length>0||!!panel;
     const running=!!panel&&["ready","running"].includes(flow?.state??"")&&flow?.articleVersion===version;
     const reviewing=busy||running;
     const issues=row?.result?.issues??[];
-    const visibleIssues=issues.map((issue,index)=>({issue,index})).filter(({issue})=>!opinions.some(o=>disputeIds.has(o.id)&&o.issue.field===issue.field&&o.issue.offset===issue.offset&&o.issue.quote===issue.quote));
-    const issuesWithoutRow=!row?(panel?.selected?.filter(o=>!disputeIds.has(o.id)&&o.action!=="retain")??[]):[];
     const blocked=panel?.reviews.some(r=>r.result.status==="blocked")||row?.status==="blocked";
     const pass=!blocked&&!pending.length&&!issues.length&&(panel?.status==="pass"||row?.status==="pass");
     const headline=reviewing?"正在审核这篇文章":pending.length?"有原句待核验":blocked?"有问题需要处理":
       pass?(historical?"该版本审核通过":current?.confirmed?"审核通过，作者已定稿":"审核通过，待作者确认") :
-      disputed?"请核对审核分歧":hasRecord?(issues.length||issuesWithoutRow.length?"请核对修改建议":"请核对已有审核记录"):"这版还没有审核记录";
+      disputed?"请核对审核分歧":hasRecord?(issues.length||panel?.reviews.some(r=>r.opinions.length)?"请核对修改建议":"请核对已有审核记录"):"这版还没有审核记录";
     const next=stale?"草稿已有修改。以下意见对应正式版本，重新审核也只读取当前正式版本。":
       reviewing?"可以返回正文，稍后再查看结果。":pending.length?"定位原句，补充能核对该句的来源，或改写缺少依据的断言。":
       pass?(historical?"可在修改历史中切回当前稿件。":current?.confirmed?"可回到正文查看定稿。":"核对正文后，由你确认定稿。"):
       disputed?"对照角色意见和裁决，再决定正文是否需要修改。":hasRecord?"查看下方记录，在正文处理需要修改的地方。":"可提交当前正式版本进行基础审核。";
+    const visualPanel=disputed??panel;
+    const handled=new Set(authorView.resolved);
+    if(applied&&disputed)for(const ids of conflictGroups(disputed))handled.add(ids.toSorted().join(":"));
+    const visual=reviewVisual(visualPanel?.articleVersion??version,visualPanel,row,handled);
     const auditLabel=hasRecord?"重新审核":"开始审核";
     return <section className="editor-audit" aria-label="作者审核结果">
       {!ready&&!error?<p role="status">正在读取审核记录…</p>:<>
@@ -129,42 +129,9 @@ export function ArticleReview({taskId,version,stale=false,article,onLocate,onDec
         <p><strong>处理</strong> 补充包含这句主张的来源，或改写、删除缺证部分。</p>
         <button type="button" className="audit-claim-action" onClick={()=>onLocate?.(c)}>定位并改写</button>{archivedQuote(c)}
       </article>)}
-      {row&&visibleIssues.map(({issue,index})=><article className="editor-audit-note" key={index}>
-        <blockquote>{issue.quote}</blockquote><p><strong>原因</strong> {issue.reason}</p><p><strong>建议</strong> {issue.suggestion}</p>{issueControls(row,index,issue)}{archivedQuote(issue)}
-      </article>)}
-      {issuesWithoutRow.map(o=><article className="editor-audit-note" key={o.id}>
-        <blockquote>{o.issue.quote}</blockquote><p><strong>{reviewRoleLabels[o.role]}</strong> {o.issue.reason}</p>
-        <p><strong>{actions[o.action]}</strong> {o.action==="replace"?o.replacement:o.issue.suggestion}</p>
-        <button type="button" onClick={()=>onLocate?.(o.issue)}>定位原文</button>
-      </article>)}
-      {groups.map(ids=>{
-        const ops=opinions.filter(o=>ids.includes(o.id));
-        const decisions=disputed?.verdict?.decisions.filter(d=>d.opinionIds.some(id=>ids.includes(id)))??[];
-        const changed=disputed?.selected.filter(o=>ids.includes(o.id)&&o.action!=="retain")??[];
-        return <article className="editor-audit-note" key={ids.join(":")}>
-          <h3>角色分歧{applied?" · 已保存修订":""}</h3>
-          {ops[0]&&<blockquote>{ops[0].issue.quote}</blockquote>}
-          <ul className="editor-role-notes">{ops.map(o=><li data-role={o.role} key={o.id}>
-            <strong>{reviewRoleLabels[o.role]} · {actions[o.action]}</strong>
-            {o.action==="replace"&&<p>{o.replacement}</p>}<p>{o.issue.reason||"未记录具体理由"}</p>
-          </li>)}</ul>
-          {decisions.length?decisions.map((d,index)=><p key={index}><strong>裁决 · {verdicts[d.action]}</strong>{d.selectedIds.length>0&&" · "+opinions.filter(o=>d.selectedIds.includes(o.id)).map(o=>reviewRoleLabels[o.role]+"「"+actions[o.action]+"」").join("、")}<br/>{d.reason||"未记录具体裁决理由"}</p>):<p>尚无裁决，待作者取舍。</p>}
-          {applied&&changed.length>0&&<div aria-label="已保存修改">{changed.map(o=><p key={o.id}><del>{o.issue.quote}</del> → {o.action==="delete"?"已删除":<ins>{o.replacement}</ins>}</p>)}</div>}
-          <details><summary>查看原句位置与裁决依据</summary>
-            {ops.map(o=><p key={o.id}><strong>{reviewRoleLabels[o.role]}</strong> · {o.evidenceIds.join("、")||"未附外部来源编号"}
-              {base&&<button type="button" onClick={()=>authorView.onLocateVersion(base.version,o.issue)}>定位当时的原句</button>}</p>)}
-            {disputed?.discussion.flatMap(d=>d.responses.filter(r=>ids.includes(r.opinionId)).map(r=><p key={d.role+r.opinionId}>{reviewRoleLabels[d.role]} · {r.position==="withdraw"?"撤回意见":"维持意见"} · {r.reason||"未记录具体回应理由"}{r.evidenceIds.length>0&&" · "+r.evidenceIds.join("、")}</p>))}
-            {decisions.flatMap(d=>d.evidenceIds).map(id=><p key={id}>裁决依据 · {id}</p>)}
-            {applied&&base&&current&&<p>审核对应 v{base.version}，修改保存到 v{current.version}。</p>}
-          </details>
-        </article>;
-      })}
-      {!!panel?.reviews.length&&!pending.length&&!visibleIssues.length&&!issuesWithoutRow.length&&<ul className="editor-role-notes" aria-label="角色意见">{panel.reviews.map(r=>{
-        const op=r.opinions.find(o=>!disputeIds.has(o.id));
-        const text=op?.issue.reason||r.result.dimensions[r.role==="strategy"?"内容策略":r.role==="language"?"表达质量":"基础规范"];
-        return text?<li data-role={r.role} key={r.role}><strong>{reviewRoleLabels[r.role]}</strong><p>{text}</p></li>:null;
-      })}</ul>}
-      {!panel&&row?.result&&!pending.length&&!visibleIssues.length&&<p><strong>基础审核</strong> {row.result.dimensions["内容策略"]}</p>}
+      {(visual.experts.length>0||visual.conflicts.length>0)&&<ReviewConsultation key={visualPanel?"panel:"+visualPanel.id:"basic:"+row?.id} visual={visual} resolved={handled} applied={!!applied}
+        onEdit={visual.version===version?authorView.onEdit:undefined} onRewrite={visual.version===version?authorView.onRewrite:undefined}
+        onLocate={issue=>visual.version===version?onLocate?.(issue):authorView.onLocateVersion(visual.version,issue)}/>}
       {rows[0]&&matches(rows[0]).map((m,i)=><button key={m.offset} disabled={reviewing||stale} onClick={()=>resolve(rows[0].id,m.offset)}>选定第 {i+1} 处 · {m.context}</button>)}
       {rows[0]?.error&&!reviewing&&<p role="status">{rows[0].error}</p>}
       <div className="editor-audit-rerun">

@@ -4,8 +4,8 @@ function reviewer(req?:Request){
   const key=process.env.STUDIO_EVAL_REVIEW_KEY;
   return Boolean(key && req?.headers.get("x-review-key")===key);
 }
-export function GET(req?:Request){
-  const view=new URL(req?.url??"http://localhost").searchParams.get("view");
+export function GET(req:Request){
+  const view=new URL(req.url).searchParams.get("view");
   if(view==="inputs")return Response.json(benchmark().inputs);
   if(view==="stats" || view==="history"){
     if(!reviewer(req))return Response.json({error:"需要人工评审密钥"},{status:403});

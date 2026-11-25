@@ -1,5 +1,5 @@
 """Conservative local index; original assets are read-only."""
-import hashlib, json, pathlib, re, zipfile
+import hashlib, json, os, pathlib, re, zipfile
 import xml.etree.ElementTree as ET
 from pypdf import PdfReader
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -83,6 +83,7 @@ def build():
         except Exception as exc: files.append(dict(record,status='failed',reason=str(exc)))
     return dict(schemaVersion=2,files=files,chunks=chunks)
 if __name__=='__main__':
-    kb=build(); output=root/'data/knowledge.json'; output.parent.mkdir(exist_ok=True)
+    kb=build(); directory=pathlib.Path(os.environ.get('STUDIO_DATA_DIR') or root/'data')
+    output=directory/'knowledge.json'; output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps(kb,ensure_ascii=False),encoding='utf-8')
     print(json.dumps(dict(files=len(kb['files']),indexed=sum(f['status']=='indexed' for f in kb['files']),chunks=len(kb['chunks']),failures=[f for f in kb['files'] if f['status']=='failed'])))

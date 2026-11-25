@@ -5,7 +5,8 @@ import path from "node:path";
 import {DatabaseSync} from "node:sqlite";
 import {create,lookup} from "../src/studio/tasks";
 import {articleCandidates,readArticles,changeArticle,articleForReview,ArticleConflict} from "../src/studio/article-store";
-import {fromText,plainText,quoteRange,documentSchema,textDiff} from "../src/studio/article-document";
+import {fromText,mapReviewAnchor,plainText,quoteRange,documentSchema,textDiff} from "../src/studio/article-document";
+import {endingEditId} from "../src/types/multi-agent-review";
 import {GET,POST} from "../src/app/api/articles/route";
 import {review,readReviews} from "../src/studio/eval";
 import {POST as reviewPost} from "../src/app/api/reviews/route";
@@ -61,9 +62,32 @@ it("格式损坏失败不会消耗修订，可修正后重试",()=>{
 it("UTF-16 定位跨叶、段落、列表、emoji，不猜测重复句的位置",()=>{
   const d=documentSchema.parse([{type:"h1",children:[{text:"🪁",bold:true},{text:"中文"}]},{type:"li",children:[{text:"重复。\n重复。"}]}]);
   expect(plainText(d)).toBe("🪁中文\n重复。\n重复。");
-  expect(quoteRange(d,"中文\n重复",2)).toEqual({anchor:{path:[0,0],offset:2},focus:{path:[1,0],offset:2}});
+  expect(quoteRange(d,"中文\n重复",2)).toEqual({anchor:{path:[0,1],offset:0},focus:{path:[1,0],offset:2}});
   expect(quoteRange(d,"重复。",9)).toEqual({anchor:{path:[1,0],offset:4},focus:{path:[1,0],offset:7}});
   expect(quoteRange(d,"重复。",6)).toBeNull();expect(quoteRange(d,"不存在",0)).toBeNull();
+});
+it("定位移动的原句，重复或已变更而无法消歧时拒绝替换",()=>{
+  const original="🪁\n"+"蓝色校样".repeat(12)+"她停下来。"+"重新读这一行".repeat(12)+"她停下来。";
+  const offset=original.lastIndexOf("她停下来。");
+  expect(mapReviewAnchor(original,"新增\n"+original,"她停下来。",offset)).toBe(offset+3);
+  expect(mapReviewAnchor("她停下来。她停下来。","她停下来。","她停下来。",5)).toBeNull();
+  expect(mapReviewAnchor("甲🪁乙","🪁甲乙","🪁",1)).toBe(0);
+});
+it("补充按草稿写入幂等，保存冲突不改变清单状态",()=>{
+  const t=seed(),db=new DatabaseSync(process.env.STUDIO_DB!);
+  db.exec("CREATE TABLE production_supplements(task TEXT,key TEXT,state TEXT)");
+  db.prepare("INSERT INTO production_supplements VALUES(?,'ending','pending')").run(t.id);
+  const draft={...edit(t.id),reviewEdit:endingEditId};
+  try{
+    expect(()=>changeArticle({...draft,revision:99})).toThrow(ArticleConflict);
+    expect(db.prepare("SELECT state FROM production_supplements").get()?.state).toBe("pending");
+    const saved=changeArticle(draft);
+    expect(changeArticle(draft).draft).toEqual(saved.draft);
+    expect(readArticles(t.id).draft?.reviewEdits).toEqual([endingEditId]);
+    expect(db.prepare("SELECT state FROM production_supplements").get()?.state).toBe("added");
+    expect(()=>changeArticle({...draft,document:fromText("另一段")})).toThrow(ArticleConflict);
+    expect(changeArticle(edit(t.id,1,3,"publish")).head.endingInserted).toBe(true);
+  }finally{db.close();}
 });
 it("纯文本差异保留中英文、换行，样式不改变审核文本",()=>{
   const d=fromText("第一段\n第二段");d[1].type="li";d[0].children[0].bold=true;

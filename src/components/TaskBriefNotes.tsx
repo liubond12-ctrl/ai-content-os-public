@@ -4,8 +4,9 @@ import {useEffect,useRef,useState} from "react";
 import {editorHref} from "@/studio/article-navigation";
 
 type Record={brief:{note:string;goal:string;audience:string;materials:{id:string;name:string;source:string;purpose:string}[];references:string[];articles:{id:string;version:number;title:string}[]};suggestions:{key:string;label:string;state:string}[];notes:{body:string;created:string}[]};
-export function TaskBriefNotes({taskId}:{taskId:string}){
+export function TaskBriefNotes({taskId,onGenerateEnding,endingInserted=false}:{taskId:string;onGenerateEnding?:()=>Promise<void>;endingInserted?:boolean}){
   const [data,setData]=useState<Record|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false),[note,setNote]=useState("");
+  const [generating,setGenerating]=useState(false);
   const noteId=useRef<string|undefined>(undefined),lock=useRef(false);
   useEffect(()=>{
     const controller=new AbortController();
@@ -28,7 +29,14 @@ export function TaskBriefNotes({taskId}:{taskId:string}){
   return <section className="task-brief-notes" aria-label="本篇补充与资料">
     <h2>本篇补充</h2>
     {suggestions.filter(s=>s.state!=="skipped").map(s=><div className="task-brief-suggestion" key={s.key}>
-      <span>{s.label}</span>{s.state==="added"?<strong>已加入本篇修改清单</strong>:<div className="actions">
+      <span>{s.label}</span>{s.key==="ending"&&onGenerateEnding?<div className="actions">
+        {endingInserted?<strong role="status">已插入正文</strong>:<button type="button" disabled={busy||generating} onClick={async()=>{
+          setGenerating(true);setError("");
+          try{await onGenerateEnding();}
+          catch(e){setError(e instanceof Error?e.message:String(e));}finally{setGenerating(false);}
+        }}>{generating?"正在生成…":"一键生成并插入"}</button>}
+        {s.state==="pending"&&!endingInserted&&<button type="button" disabled={busy||generating} onClick={()=>void update({action:"suggestion",key:s.key,state:"skipped"})}>× 跳过</button>}
+      </div>:s.state==="added"?<strong>已加入本篇修改清单</strong>:<div className="actions">
         <button type="button" disabled={busy} onClick={()=>void update({action:"suggestion",key:s.key,state:"added"})}>✓ 加上</button>
         <button type="button" disabled={busy} onClick={()=>void update({action:"suggestion",key:s.key,state:"skipped"})}>× 跳过</button>
       </div>}</div>)}

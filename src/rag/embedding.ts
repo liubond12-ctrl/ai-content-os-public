@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
+import {ragIndexPath} from './index-path.ts';
 import {env,pipeline,type FeatureExtractionPipeline} from '@huggingface/transformers';
 
 export const MODEL={name:'Xenova/bge-small-zh-v1.5',revision:'75c43b069aac4d136ba6bc1122f995fedcfd2781',dimensions:512,dtype:'q8',pooling:'cls',normalize:true,queryPrefix:'为这个句子生成表示以用于检索相关文章：',maxTokens:512,runtime:'@huggingface/transformers@3.8.1 / ONNX Runtime CPU'};
@@ -53,7 +54,7 @@ export function cosine(a:number[],b:number[]){
 }
 export async function loadVectors(chunks:Array<{id:string;heading:string;text:string}>):Promise<VectorIndex>{
  let index:VectorIndex;
- try{index=JSON.parse(await readFile('data/vectors.json','utf8')) as VectorIndex;}
+ try{index=JSON.parse(await readFile(ragIndexPath('vectors.json'),'utf8')) as VectorIndex;}
  catch{throw Error('本地向量索引不可用或格式损坏，请运行 npm run index:vectors；未自动退回关键词模式。');}
  if(JSON.stringify(index.model)!==JSON.stringify(MODEL))throw Error('向量索引模型版本不兼容，请运行 npm run index:vectors');
  const map=new Map(index.vectors.map(v=>[v.id,v]));

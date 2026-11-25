@@ -1,5 +1,9 @@
-import {describe,it,expect} from 'vitest';
-import {knowledge,retrieve,searchAndAssemble} from '../src/rag/search';
+import {describe,it,expect,vi} from 'vitest';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {loadVectors,MODEL} from '../src/rag/embedding';
+import {knowledge,retrieve,retrieveMode,searchAndAssemble} from '../src/rag/search';
 const kb=await knowledge();
 const cases=['GESP','Python','C++','Scratch','阶段测评','评论','封面','配图','主动性','课外班'];
 describe('真实文件检索',()=>{
@@ -12,4 +16,24 @@ describe('真实文件检索',()=>{
  it('规则冲突提示',()=>expect(retrieve(kb.chunks,'配图','demoa').warnings.join()).toContain('差异'));
  it('改述并非语义检索',()=>expect(retrieve(kb.chunks,'孩子遇到难题就等大人帮忙','demob').mode).toBe('keyword'));
  it('证据进入装配',async()=>{const r=await searchAndAssemble('GESP','demoa');expect(r.assembly.manifest.retrievedEvidence.length).toBeGreaterThan(0);expect(r.assembly.compiledContext).toContain(r.retrieval.hits[0].text.replace(/\n/g,'\\n'));});
+});
+
+
+it('reads keyword and vector indexes only from the isolated demo runtime directory',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'rag-isolation-'));
+ vi.stubEnv('STUDIO_DATA_DIR',directory);
+ vi.stubEnv('STUDIO_DEMO_INSTANCE','1');
+ try{
+  await expect(knowledge()).rejects.toMatchObject({code:'ENOENT'});
+  await writeFile(join(directory,'knowledge.json'),'[]');
+  const isolated=await knowledge();
+  expect(isolated).toEqual({files:[],chunks:[]});
+  expect((await retrieveMode(isolated.chunks,'GESP','demoa','hybrid')).hits).toEqual([]);
+  await expect(loadVectors([])).rejects.toThrow('本地向量索引不可用');
+  await writeFile(join(directory,'vectors.json'),JSON.stringify({model:MODEL,vectors:[]}));
+  expect((await loadVectors([])).vectors).toEqual([]);
+ }finally{
+  vi.unstubAllEnvs();
+  await rm(directory,{recursive:true,force:true});
+ }
 });

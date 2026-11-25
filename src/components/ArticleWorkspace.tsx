@@ -7,9 +7,10 @@ import {useEffect,useRef,useState} from "react";
 import {Plate,PlateContent,PlateElement,PlateLeaf,ParagraphPlugin,createPlatePlugin,usePlateEditor,type PlateElementProps,type PlateLeafProps} from "platejs/react";
 import {H1Plugin,H2Plugin,BoldPlugin} from "@platejs/basic-nodes/react";
 import {validateBody,renderSections} from "../studio/production-schema";
-import {fromText,plainText,quoteRange,textDiff,type ArticleDocument} from "../studio/article-document";
+import {bodySection,fromText,mapReviewAnchor,plainText,quoteRange,textDiff,type ArticleDocument} from "../studio/article-document";
 import type {ArticleState} from "../studio/article-store";
 import type {Review} from "@/studio/eval";
+import {endingEditId,type LocalArticleEdit,type ReviewAnchor} from "@/types/multi-agent-review";
 import {ArticleReview} from "./ArticleReview";
 import "./article-editor.css";
 
@@ -128,13 +129,74 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
     }catch(e){setError(String(e));setStatus("保存失败，输入仍保留");stopped.current=true;}
     finally{flight.current=false;setBusy(false);}
   }
+  function liveOffset(anchor:ReviewAnchor,snapshot:{title:string;document:ArticleDocument}){
+    const original=version[anchor.field],live=anchor.field==="title"?snapshot.title:plainText(snapshot.document);
+    return mapReviewAnchor(original,live,anchor.quote,anchor.offset);
+  }
+  async function generate(edit:{kind:"ending"}|{kind:"rewrite";anchor:ReviewAnchor;suggestion:string}){
+    if(!window.confirm("局部生成将调用已配置的模型。云端模型可能计费。继续？"))throw Error("已取消局部生成");
+    const active=stateRef.current;
+    if(edit.kind==="rewrite"&&liveOffset(edit.anchor,current.current)===null)throw Error("原句已变化，请定位后在正文修改。");
+    const response=await fetch("/api/articles",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:"generate-edit",taskId,version:version.version,revision:active.draft?.revision??0,allowCloud:true,edit}),signal:AbortSignal.timeout(65000)});
+    const output=await response.json();
+    if(!response.ok)throw Error(output.error??"局部生成失败");
+    return output.text as string;
+  }
+  async function applyEdit(id:string,create:()=>Promise<LocalArticleEdit>){
+    const stateBefore=stateRef.current;
+    if(flight.current||selected!==stateBefore.head.version)throw Error("请等待保存完成后在当前版本操作。");
+    if(stateBefore.draft?.baseVersion===selected&&stateBefore.draft.reviewEdits?.includes(id))return;
+    flight.current=true;setBusy(true);setError("");
+    const snapshot=current.current;
+    try{
+      const edit=await create();
+      if(JSON.stringify(current.current)!==JSON.stringify(snapshot))throw Error("正文已变化，生成结果未写入。");
+      const next=structuredClone(snapshot);
+      if(edit.kind==="replace"){
+        const {anchor,text}=edit;
+        if(/[\r\n]/.test(text))throw Error("请使用单行替换，跨段修改请在正文编辑器中完成。");
+        const offset=liveOffset(anchor,snapshot);
+        if(offset===null)throw Error("原句已变化，请定位后在正文修改。");
+        if(anchor.field==="title"){
+          next.title=next.title.slice(0,offset)+text+next.title.slice(offset+anchor.quote.length);
+        }else{
+          const range=quoteRange(next.document,anchor.quote,offset);
+          if(!range||range.anchor.path[0]!==range.focus.path[0])throw Error("建议跨越多个段落，请在正文修改。");
+          const [block,start]=range.anchor.path,end=range.focus.path[1];
+          const leaves=next.document[block].children;
+          const first=leaves[start],last=leaves[end];
+          if(start===end){
+            first.text=first.text.slice(0,range.anchor.offset)+text+first.text.slice(range.focus.offset);
+          }else{
+            const prefix={...first,text:first.text.slice(0,range.anchor.offset)+text};
+            const suffix={...last,text:last.text.slice(range.focus.offset)};
+            leaves.splice(start,end-start+1,prefix,suffix);
+          }
+        }
+      }else{
+        const blocks=next.document;
+        const section=bodySection(blocks,stateBefore.kind);
+        if(!section)throw Error("正文区块无法唯一定位，请先核对文章结构。");
+        let end=section.end;
+        while(end>section.start&&!plainText([blocks[end-1]]).trim())end--;
+        blocks.splice(end,0,{type:"p",children:[{text:edit.text}]});
+      }
+      {
+        const result=await request({action:"draft",taskId,revision:stateBefore.draft?.revision??0,baseVersion:stateBefore.head.version,reviewEdit:id,...next});
+        install(result);current.current=next;setTitle(next.title);setDocument(next.document);
+        saved.current=JSON.stringify(next);setSavedSerial(saved.current);setEditorKey(key=>key+1);
+        setLocating(null);stopped.current=false;setStatus("已保存修改");
+      }
+    }finally{flight.current=false;setBusy(false);}
+  }
   function locate(issue:{field:"title"|"body";quote:string;offset:number}){
     setLocating(null);setNotice("");
     if(version[issue.field].slice(issue.offset,issue.offset+issue.quote.length)!==issue.quote){setNotice("引用无法与此版本精确匹配，未高亮。");return;}
-    setLocating({...issue});
-    const live=issue.field==="title"?title:plainText(document);
-    if(stale&&live.slice(issue.offset,issue.offset+issue.quote.length)!==issue.quote){openAudit();return;}
-    if(issue.field==="title"&&selected===state.head.version){titleRef.current?.focus();titleRef.current?.setSelectionRange(issue.offset,issue.offset+issue.quote.length);}
+    const liveAt=selected===state.head.version?liveOffset(issue,current.current):issue.offset;
+    if(liveAt===null){setNotice("当前草稿中的原句无法唯一定位，可在审核记录查看原文。");return;}
+    setLocating({...issue,offset:liveAt});
+    if(issue.field==="title"&&selected===state.head.version){titleRef.current?.focus();titleRef.current?.setSelectionRange(liveAt,liveAt+issue.quote.length);}
   }
   function selectVersion(next:number){
     const version=next===state.head.version?undefined:String(next);
@@ -246,9 +308,15 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
           <details><summary>版本编号与来源</summary><p>正式版本 v{version.version} · 草稿修订 {state.draft?.revision??0} · 研究 v{version.researchVersion}</p><p>引用来源 {version.citations.join("、")||"无"} · 来源任务快照 r{version.sourceTaskRevision}{version.restoredFrom&&" · 恢复自 v"+version.restoredFrom}</p></details>
         </div>
       </details>
-    <TaskBriefNotes taskId={taskId}/>
+    <TaskBriefNotes taskId={taskId} endingInserted={state.head.endingInserted||state.draft?.baseVersion===selected&&state.draft.reviewEdits?.includes(endingEditId)} onGenerateEnding={selected===state.head.version?()=>applyEdit(endingEditId,async()=>({
+      kind:"append",text:await generate({kind:"ending"}),
+    })):undefined}/>
     </div><aside className="editor-review-panel"><details id="article-audit" open={auditOpen} onToggle={e=>setAuditOpen(e.currentTarget.open)}><summary>查看审核与修改建议</summary>{auditOpen&&<ArticleReview key={taskId+":"+version.version} taskId={taskId} version={version.version} stale={stale} article={version}
-      authorView={{versions:state.versions,detailHref:reviewHref(taskId,returnTo),returnToBody,onReady:revealLoadedAudit,unmapped:locating&&stale&&(locating.field==="title"?title:plainText(document)).slice(locating.offset,locating.offset+locating.quote.length)!==locating.quote?locating:undefined,onLocateVersion:(v,i)=>{if(v===version.version)locate(i);else{selectVersion(v);setLocating(i);}}}}
+      authorView={{versions:state.versions,
+        resolved:state.draft?.baseVersion===selected?state.draft.reviewEdits:undefined,
+        onEdit:selected===state.head.version?(id,anchor,text)=>applyEdit(id,async()=>({kind:"replace",anchor,text})):undefined,
+        onRewrite:selected===state.head.version?(id,anchor,suggestion)=>applyEdit(id,async()=>({kind:"replace",anchor,text:await generate({kind:"rewrite",anchor,suggestion})})):undefined,
+        detailHref:reviewHref(taskId,returnTo),returnToBody,onReady:revealLoadedAudit,unmapped:locating&&stale&&(locating.field==="title"?title:plainText(document)).slice(locating.offset,locating.offset+locating.quote.length)!==locating.quote?locating:undefined,onLocateVersion:(v,i)=>{if(v===version.version)locate(i);else{selectVersion(v);setLocating(i);}}}}
       onDecide={selected!==state.head.version?undefined:async(review,issue,quote,replacement,reason)=>{
       try{await request({action:"decide",taskId,baseVersion:selected,revision:state.draft?.revision??0,review,issue,replacement,reason,choice:replacement===quote?"retain":"accept"});const url=new URL(location.href);for(const key of ["version","field","at","length","claim","issue","review"])url.searchParams.delete(key);history.replaceState(null,"",url);location.reload();}catch(e){setError(String(e));}
     }} onLocate={locate}/>}</details></aside></div>;

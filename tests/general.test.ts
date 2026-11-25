@@ -36,13 +36,13 @@ it("参考导入版本与人工 Eval 独立，Eval 内容绝不进入检索",asy
   const item={...references()[0],id:"example",method:"用矛盾开场",tags:["矛盾"]};
   expect((await importRef(req(item))).status).toBe(201);
   expect((await importRef(req(item))).ok).toBe(false);
-  expect((await (await browse()).json()).some((c:{id:string})=>c.id==="example")).toBe(true);
+  expect((await (await browse(new Request("http://localhost/api/references"))).json()).some((c:{id:string})=>c.id==="example")).toBe(true);
   const evaluation={id:"eval-one",version:1,content:"盲评专用样本",referenceId:"example",label:"普通",reviewer:"fixture reviewer",
     dimensions:["结构"],rationale:"结尾没有回应开头",locations:["结尾"],positiveExample:"回到原问题",negativeExample:"重复口号",
     scenario:"口播练习",tags:["结构"],rights:"原创",source:"离线测试",allowExternal:false,createdAt:item.createdAt};
   expect((await saveEval(req({item:evaluation}))).status).toBe(400);
   expect((await saveEval(req({item:evaluation,humanReviewed:true}))).status).toBe(201);
-  expect(await readEval().json()).toEqual([evaluation]);
+  expect(await readEval(new Request("http://localhost/api/eval-cases")).json()).toEqual([evaluation]);
   for(const mode of ["keyword","semantic","hybrid"] as const){
     const r=await findMethods({topic:"开场",audience:"",format:"口播稿"},"矛盾",mode);
     expect(r.hits.every(h=>h.id.startsWith("general/reference/"))).toBe(true);
@@ -83,7 +83,7 @@ it("独立集答案仅人工持钥可读，盲测接口无标签，统计只计�
   expect((await send(entry,true)).status).toBe(201);
   expect((await send({...entry,version:2,label:"普通"},true)).status).toBe(201);
   expect((await send({...entry,id:"dev-copy",split:"dev"},true)).ok).toBe(false);
-  expect(await readEval().json()).toEqual([]);
+  expect(await readEval(new Request(url)).json()).toEqual([]);
   const blind=await readEval(new Request(url+"?view=inputs")).json();
   expect(Object.keys(blind[0]).sort()).toEqual(["id","version","format","goal","criteria","content","split"].sort());
   expect(readEval(new Request(url+"?view=history")).status).toBe(403);

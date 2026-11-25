@@ -1,8 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { assembleContext } from '../context/assembler';
+import { ragIndexPath } from './index-path';
 export interface Chunk { id:string; path:string; sha256:string; heading:string; location:string; offset:number; text:string; persona:string; personaReason:string; kind:string; kindReason:string; verified:boolean; publicationDate:string|null; tags:string[]; sources:Array<{path:string;modifiedAt:number;associatedPersonas:string[]}>; temporal:{status:'unknown'|'historical'|'current-verified';publicationDate:string;applicableDate:string;dateMentions:string[];reason:string} }
-export async function knowledge() { return JSON.parse(await readFile('data/knowledge.json','utf8')) as {files:Array<{path:string;status:string;reason?:string;chunks?:number}>;chunks:Chunk[]}; }
+type KnowledgeIndex = {files:Array<{path:string;status:string;reason?:string;chunks?:number}>;chunks:Chunk[]};
+export async function knowledge():Promise<KnowledgeIndex> {
+ const data:unknown=JSON.parse(await readFile(ragIndexPath('knowledge.json'),'utf8'));
+ // Older isolated launchers initialized their empty index with [].
+ if(Array.isArray(data)&&data.length===0)return {files:[],chunks:[]};
+ if(!data||typeof data!=="object"||!("files" in data)||!("chunks" in data)||!Array.isArray(data.files)||!Array.isArray(data.chunks))
+  throw Error("本地知识索引格式无效，请重新生成。");
+ return data as KnowledgeIndex;
+}
 export type Mode='keyword'|'semantic'|'hybrid';
 export type Hit=Chunk & {score:number;keywordRank?:number;keywordScore?:number;semanticRank?:number;similarity?:number;finalRank:number};
 export function exclusion(c:Chunk,query:string,persona:string){
@@ -56,6 +65,7 @@ export async function retrieveMode(chunks:Chunk[],query:string,persona:string,mo
  const start=performance.now();
  if(mode==='keyword')return {...retrieve(chunks,query,persona),elapsedMs:performance.now()-start,model:null};
  const {embed,loadVectors,cosine,MODEL}=await import('./embedding');
+ if(!chunks.length)return {...summarize(mode,query,persona,[],[]),elapsedMs:performance.now()-start,model:MODEL};
  const index=await loadVectors(chunks), vector=await embed(query,true), vectors=new Map(index.vectors.map(v=>[v.id,v.values]));
  const excluded:Array<{id:string;path:string;reason:string}>=[];
  const semantic:Hit[]=chunks.flatMap(c=>{

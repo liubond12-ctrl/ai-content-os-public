@@ -4,6 +4,7 @@ import {DatabaseSync} from "node:sqlite";
 import {z} from "zod";
 import type {Task} from "./tasks";
 import {documentSchema,fromText,quoteRange,plainText,type ArticleDocument} from "./article-document";
+import {endingEditId} from "../types/multi-agent-review";
 
 export interface ArticleSnapshot {
   taskId:string;version:number;sourceTaskRevision:number;researchVersion:number;
@@ -11,8 +12,9 @@ export interface ArticleSnapshot {
   citations:string[];origin:"model"|"human"|"restore"|"ai-revision";model?:string;
   confirmed?:boolean; decision?:{review:string;issue:number;reason:string;choice:string;opinionId?:string};
   revisionReviewId?:string;parentVersion?:number;restoredFrom?:number;createdAt:string;reviewLabel:string;
+  endingInserted?:boolean;
 }
-export interface ArticleDraft {revision:number;baseVersion:number;title:string;document:ArticleDocument;updatedAt:string}
+export interface ArticleDraft {revision:number;baseVersion:number;title:string;document:ArticleDocument;updatedAt:string;reviewEdits?:string[]}
 export interface ArticleState {kind?:import("zod").infer<typeof import("./production-schema").contentKind>;versions:ArticleSnapshot[];head:ArticleSnapshot;draft:ArticleDraft|null}
 export class ArticleUnavailable extends Error{}
 export class ArticleConflict extends Error{}
@@ -64,7 +66,7 @@ export function articleForReview(id:string,version:number){
 const common={taskId:z.uuid(),revision:z.number().int().nonnegative(),baseVersion:z.number().int().positive()};
 const content={title:z.string().min(1).max(1000),document:documentSchema.refine(d=>plainText(d).length<=200000,"文章最多 200000 字符")};
 export const articleMutation=z.discriminatedUnion("action",[
-  z.object({...common,...content,action:z.literal("draft")}).strict(),
+  z.object({...common,...content,action:z.literal("draft"),reviewEdit:z.string().min(1).max(500).optional()}).strict(),
   z.object({...common,...content,action:z.literal("publish")}).strict(),
   z.object({...common,action:z.literal("decide"),review:z.string(),issue:z.number().int().nonnegative(),reason:z.string().trim().min(1).max(1000),choice:z.enum(["accept","retain"]),replacement:z.string().max(4000)}).strict(),
   z.object({...common,action:z.literal("restore"),version:z.number().int().positive()}).strict()
@@ -79,8 +81,17 @@ export function changeArticle(raw:unknown){
 export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:import("./professional-review").Opinion){
     if(!db.isTransaction)throw Error("文章写入需要事务");
     const input=articleMutation.parse(raw),current=articleStateInTransaction(db,input.taskId);
+    const previous=current.draft?.baseVersion===current.head.version?current.draft.reviewEdits??[]:[];
+    if(input.action==="draft"&&input.reviewEdit&&current.head.version===input.baseVersion&&previous.includes(input.reviewEdit)){
+      if(current.draft?.title===input.title&&JSON.stringify(current.draft.document)===JSON.stringify(input.document))return current;
+      throw new ArticleConflict("此建议已处理。当前输入仍保留，请重新载入最新草稿。");
+    }
     if((current.draft?.revision??0)!==input.revision || current.head.version!==input.baseVersion)
       throw new ArticleConflict("内容已由其他窗口更新。当前输入仍保留，请复制后重新载入最新草稿。");
+    if(input.action==="draft"&&input.reviewEdit===endingEditId){
+      const updated=db.prepare("UPDATE production_supplements SET state='added' WHERE task=? AND key='ending' AND state IN ('pending','added')").run(input.taskId);
+      if(!updated.changes)throw new ArticleConflict("结尾补充已被跳过或不再适用于这篇稿件。");
+    }
     let title:string,document:ArticleDocument,baseVersion=current.head.version;
     if(input.action==="restore"){
       const old=current.versions.find(v=>v.version===input.version);if(!old)throw Error("历史版本不存在");
@@ -129,10 +140,16 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
       const snapshot:ArticleSnapshot={...source,title,document,body:plainText(document),version:baseVersion,
         confirmed:input.action==="publish",revisionReviewId:undefined,decision:input.action==="decide"?{review:input.review,issue:input.issue,reason:input.reason,choice:input.choice,opinionId:opinion?.id}:undefined,origin:input.action==="restore"?"restore":"human",model:undefined,parentVersion:current.head.version,
         restoredFrom:input.action==="restore"?input.version:undefined,createdAt:new Date().toISOString(),
+        endingInserted:input.action==="restore"||input.action==="decide"?source.endingInserted:previous.includes(endingEditId)||source.endingInserted,
         reviewLabel:source.reviewLabel.includes("限定范围")?"限定范围草稿，待人工审核（人工编辑）":"人工编辑，待人工审核"};
       db.prepare("INSERT INTO article_snapshots VALUES(?,?,?)").run(input.taskId,baseVersion,JSON.stringify(snapshot));
     }
-    const draft:ArticleDraft={revision:input.revision+1,baseVersion,title,document,updatedAt:new Date().toISOString()};
+    const reviewEdits=input.action==="draft"
+      ? [...previous,...(input.reviewEdit?[input.reviewEdit]:[])]
+      : input.action==="restore"
+        ? (current.versions.find(v=>v.version===input.version)?.endingInserted?[endingEditId]:[])
+        : (previous.includes(endingEditId)||current.head.endingInserted?[endingEditId]:[]);
+    const draft:ArticleDraft={revision:input.revision+1,baseVersion,title,document,updatedAt:new Date().toISOString(),reviewEdits};
     db.prepare("INSERT INTO article_drafts VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload")
       .run(input.taskId,draft.revision,JSON.stringify(draft));
     const result=articleStateInTransaction(db,input.taskId);

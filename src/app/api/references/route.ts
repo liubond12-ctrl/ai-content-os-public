@@ -1,7 +1,7 @@
 import {references,importCase,removeReference,findMethods,formats,methodIndex} from "../../../studio/library";
 import {z} from "zod";
-export async function GET(req?:Request){
-  const p=new URL(req?.url??"http://localhost").searchParams;
+export async function GET(req:Request){
+  const p=new URL(req.url).searchParams;
   const rows=references().filter(c=>(!p.get("tag")||c.tags.includes(p.get("tag")!))&&(!p.get("goal")||c.goal===p.get("goal"))&&(!p.get("format")||c.format===p.get("format")));
   const q=p.get("q")?.trim();
   if(!q)return Response.json(rows);
