@@ -1,0 +1,13 @@
+import {spawn} from "node:child_process";
+import {existsSync,mkdirSync,writeFileSync} from "node:fs";
+import {DatabaseSync} from "node:sqlite";
+import path from "node:path";
+if(existsSync(".env.local"))process.loadEnvFile(".env.local");
+if(!process.env.STUDIO_MODEL_KEY)throw Error("现有 STUDIO_MODEL_KEY 未配置，未发出请求");
+const dir=path.resolve("data-production-real-phase1");
+mkdirSync(path.join(dir,"experiments"),{recursive:true});
+for(const f of ["knowledge.json","vectors.json"])if(!existsSync(path.join(dir,f)))writeFileSync(path.join(dir,f),"[]");
+new DatabaseSync(path.join(dir,"experiments/lamp-deepseek-once.sqlite")).close();
+const env={...process.env,PORT:process.env.PORT||"3589",STUDIO_DATA_DIR:dir,STUDIO_PRODUCTION_SCOPE:"phase1-original-fiction",STUDIO_MODEL:"deepseek-flash",STUDIO_MODEL_URL:"https://api.deepseek.com/chat/completions",STUDIO_FEISHU_SCOPE:"null",STUDIO_FEISHU_TOKEN:""};
+const child=spawn(process.execPath,["scripts/start-production.mjs"],{env,windowsHide:true,stdio:"inherit"});
+process.on("SIGINT",()=>child.kill());process.on("SIGTERM",()=>child.kill());

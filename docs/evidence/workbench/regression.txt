@@ -1,0 +1,13 @@
+
+> context-engineering-lab@0.1.0 test
+> vitest run --maxWorkers=3
+
+
+ RUN  v4.1.12
+
+
+ Test Files  26 passed (26)
+      Tests  248 passed (248)
+   Start at  20:38:35
+   Duration  11.39s (transform 976ms, setup 0ms, import 6.73s, tests 21.94s, environment 2ms)
+

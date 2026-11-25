@@ -1,0 +1,14 @@
+import {createServer} from "node:http";
+import {readFileSync,realpathSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join,relative,isAbsolute} from "node:path";
+const mode=process.argv[2];if(!["real","demo","workflow"].includes(mode))throw Error("请选择 real、demo 或 workflow");
+const config=JSON.parse(readFileSync(process.argv[3]||join(tmpdir(),"discussion-fixture.json"),"utf8").replace(/^\uFEFF/,""));
+const root=realpathSync(join(process.env.LOCALAPPDATA,"AI-Content-OS","acceptance")),dir=realpathSync(join(config.folder,mode));
+const rel=relative(root,dir);if(rel.startsWith("..")||isAbsolute(rel)||!(mode==="workflow"?rel.startsWith("author-workflow-"):rel.startsWith("discussion-")))throw Error("需要隔离副本");
+Object.assign(process.env,{STUDIO_DB:join(dir,"studio.sqlite"),STUDIO_LIBRARY_DB:join(dir,"content-library.sqlite"),STUDIO_MODEL:"",STUDIO_MODEL_KEY:"",STUDIO_MODEL_URL:"http://127.0.0.1:1/disabled",STUDIO_PRODUCTION_SCOPE:"",STUDIO_NEXT_DIST_DIR:".next",FEISHU_CARD_LIVE_APPROVED:"0",STUDIO_DEMO_INSTANCE:mode==="real"?"0":"1"});
+const workflowPort=["3594","3595"].includes(process.argv[4])?Number(process.argv[4]):3593;
+const port=mode==="workflow"?workflowPort:mode==="demo"?3591:3592;
+const {default:next}=await import("next");const app=next({dev:false,hostname:"127.0.0.1",port});await app.prepare();
+const handler=app.getRequestHandler();
+createServer((req,res)=>{if(!["GET","HEAD"].includes(req.method)){res.writeHead(403,{"Content-Type":"application/json; charset=utf-8"});res.end(JSON.stringify({error:"隔离回放入口仅供阅读"}));return;}return handler(req,res);}).listen(port,"127.0.0.1",()=>console.log("隔离回放 http://127.0.0.1:"+port));

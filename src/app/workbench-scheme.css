@@ -1,0 +1,158 @@
+/* The workbench follows the system scheme, including native controls and dialogs. :root keeps these overrides ahead of route CSS regardless of load order. */
+@media (prefers-color-scheme: dark) {
+  :root .desk {
+    color-scheme: dark;
+    --ink: #edf1f5;
+    --muted: #b6c1cb;
+    --olive: #a9d0f2;
+    --sand: #181d23;
+    --surface: #222a32;
+    --surface-deep: #1e252d;
+    --oat: #303d4b;
+    --line: #4d5e6e;
+    --control: #293541;
+    --hover: #354657;
+    --current: #344f68;
+    --primary-bg: #274b6a;
+    --primary-text: #f2f7fb;
+    --focus: #a5d4ff;
+    --mode-surface: var(--control);
+    --mode-text: var(--ink);
+    --mode-hover: var(--hover);
+    --mode-current: var(--current);
+    --mode-current-text: var(--primary-text);
+    --mode-focus: var(--focus);
+    --good-bg: #233e35;
+    --good-text: #b4e3c8;
+    --attention-bg: #493522;
+    --attention-text: #ffd4a5;
+    --error-bg: #492c32;
+    --error-text: #ffc0c1;
+    background: var(--sand);
+    color: var(--ink);
+  }
+  :root .desk .rail { background: var(--surface-deep); }
+  :root .desk .brand span { background: var(--primary-bg); }
+  :root .desk .rail nav a { color: var(--muted); }
+  :root .desk .rail nav a:not([aria-current]):hover { background: var(--hover); color: var(--ink); }
+  :root .desk .rail nav a:is([aria-current=page],[aria-current=location]) {
+    background: var(--current); color: var(--ink);
+  }
+  :root .desk .rail nav a:is([aria-current=page],[aria-current=location])::before { background: var(--focus); }
+  :root .desk :focus-visible,
+  :root .desk .rail nav a:focus-visible,
+  :root .desk .content .author-back:focus-visible,
+  :root .desk .discussion-reader summary:focus-visible { outline-color: var(--focus); }
+  :root .desk .content :is(input,select,textarea,button):where(:not([type=checkbox],[type=range])) {
+    background-color: var(--control); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .content .production :is(input:not([type=checkbox],[type=range]),select,textarea) {
+    background: var(--control); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .content :is(input,textarea)::placeholder { color: var(--muted); opacity: 1; }
+  :root .desk .content button:not(:disabled):hover { background-color: var(--hover); }
+  :root .desk .content :is(button.primary,.primary-link,.primary-button,button[aria-pressed=true]),
+  :root .desk .content .chat-composer-actions .chat-send,
+  :root .desk .ck-primary,
+  :root .desk .article-export button:first-of-type {
+    background: var(--primary-bg); color: var(--primary-text); border-color: var(--focus);
+  }
+  :root .desk .ck-primary:hover,
+  :root .desk .content .chat-composer-actions .chat-send:hover { background: var(--current); }
+  :root .desk .content :is(.surface,.panel,.conflict-card,.case-list,.list,.tasks,.composer,.brief,.production-form),
+  :root .desk .content .management-grid form,
+  :root .desk .content .dashboard article,
+  :root .desk .content main:not(.dashboard)>details,
+  :root .desk .content .article-columns>:is(section,aside),
+  :root .desk .content :is(.author-review,.editor-paper,.dr-issue),
+  :root .desk .ck-card,
+  :root .desk .ck-settings>div {
+    background: var(--surface); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .ck-card:hover { border-color: var(--focus); }
+  :root .desk .ck-icon,.desk .ck-secondary,.desk .paper,
+  :root .desk .status-pill,.desk small,.desk .meta span { background: var(--oat); color: var(--ink); }
+  :root .desk .cockpit-home small { background: transparent; color: var(--muted); }
+  :root .desk .ck-meta,.desk .worker-status { color: var(--muted); }
+  :root .desk .ck-status,.desk .ck-stats [data-tone=priority] { color: var(--attention-text); }
+  :root .desk .ck-stats [data-tone=alert] { color: var(--error-text); }
+  :root .desk .ck-hot { background: var(--good-bg); color: var(--good-text); border-color: var(--good-text); }
+  :root .desk .content :is(.single-brief,.account-options,.chat-add-options,.chat-material-dialog) {
+    background: var(--surface); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .content .single-brief:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+  :root .desk .content .single-brief[data-drag=true] { background: var(--current); border-color: var(--focus); }
+  :root .desk .content .production .single-brief > textarea { background: transparent; }
+  :root .desk .content .chat-composer-actions .chat-plus,
+  :root .desk .content .chat-attachment {
+    background: var(--control); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .content .chat-attachment[data-error] { background: var(--error-bg); border-color: var(--error-text); }
+  :root .desk .content .chat-attachment button,
+  :root .desk .content .chat-add-options button,
+  :root .desk .content .chat-file-label small { background: transparent; }
+  :root .desk .content .chat-file-label small,
+  :root .desk .chat-adjust-notice,.desk .chat-upload-status { color: var(--muted); }
+  :root .desk .chat-material-dialog::backdrop { background: rgb(0 0 0 / .65); }
+  :root .desk .content :is(.chat-preflight-reply,.chat-preflight-result),
+  :root .desk .content pre {
+    background: var(--control); color: var(--ink); border-color: var(--line);
+  }
+  :root .desk .production-form > .batch-actions { background: var(--surface); }
+  :root .desk .content .production-readiness {
+    --readiness-bg: var(--attention-bg); --readiness-text: var(--attention-text); --readiness-line: #c5915f;
+  }
+  :root .desk .content .production-readiness[data-readiness=ready] {
+    --readiness-bg: var(--good-bg); --readiness-text: var(--good-text); --readiness-line: #79ae90;
+  }
+  :root .desk .content .production-readiness[data-readiness=disconnected] {
+    --readiness-bg: var(--error-bg); --readiness-text: var(--error-text); --readiness-line: #d68a93;
+  }
+  :root .desk .queue-basic,.desk .article-workspace .article-fact,.desk .author-review-fact {
+    background: var(--attention-bg); color: var(--attention-text);
+  }
+  :root .desk .content :is([role=alert],.article-workspace [role=alert]) { color: var(--error-text); }
+  :root .desk .content :is(.article-workspace,.author-review-page,.discussion-reader,.task-run),
+  :root .desk .article-workspace .article-body,
+  :root .desk .editor-audit-lead h2 { color: var(--ink); }
+  :root .desk .article-workspace .article-heading textarea,
+  :root .desk .editor-paper .article-body {
+    background: var(--surface); color: var(--ink);
+  }
+  :root .desk .editor-paper .article-toolbar,
+  :root .desk .article-workspace .article-tools,
+  :root .desk .article-workspace .editor-layout > aside.editor-review-panel,
+  :root .desk .article-workspace .article-tools-grid > section,
+  :root .desk .article-workspace .editor-audit-note,
+  :root .desk .editor-audit-note blockquote,
+  :root .desk .author-review-changes { background: var(--surface-deep); border-color: var(--line); }
+  :root .desk .article-actions [role=status],
+  :root .desk .article-history-event small,
+  :root .desk .editor-audit-rerun p,
+  :root .desk .editor-audit .audit-snapshot figcaption,
+  :root .desk .dr-role summary span,
+  :root .desk .task-run-list small { color: var(--muted); }
+  :root .desk .editor-audit .audit-snapshot blockquote,
+  :root .desk .editor-audit-lead[data-tone=attention] { background: var(--attention-bg); }
+  :root .desk .editor-audit-lead { background: var(--control); }
+  :root .desk .editor-audit-lead[data-tone=clear],.desk .dr-summary { background: var(--good-bg); }
+  :root .desk .author-review-status,.desk .dr-top,.desk .dr-status { color: var(--good-text); }
+  :root .desk .article-workspace del,.desk .author-review del { background: var(--error-bg); color: var(--error-text); }
+  :root .desk .article-workspace ins,.desk .author-review ins { background: var(--good-bg); color: var(--good-text); }
+  :root .desk .content .author-back,.desk .editor-audit .audit-goto { background: var(--surface); color: var(--olive); }
+  :root .desk :is([data-role=strategy],.editor-role-notes li[data-role=strategy]) {
+    --role: #a9ddc0; --tint: #263c34; --role-line: #73a58d;
+  }
+  :root .desk :is([data-role=language],.editor-role-notes li[data-role=language]) {
+    --role: #b0c7fc; --tint: #29364d; --role-line: #7e96c7;
+  }
+  :root .desk :is([data-role=facts],.editor-role-notes li[data-role=facts]) {
+    --role: #f3cd9e; --tint: #453524; --role-line: #b18b60;
+  }
+  :root .desk [data-role=judge] { --role: #ecc5f4; --tint: #413149; --role-line: #a885b0; }
+  :root .desk .content .hot-reader { --ink: #edf1f5; --accent: #a9ddc0; --rule: var(--line); }
+  :root .desk .hot-reader :is(.hot-ranks,.hot-day>h2) { background: var(--surface); }
+  :root .desk .hot-reader :is(.hot-range,.hot-update,.hot-ranks small,.hot-byline,.hot-tools),
+  :root .desk .hot-tabs a { color: var(--muted); }
+  :root .desk .hot-reader .hot-tools :is(button,summary):hover { background: var(--hover); }
+}

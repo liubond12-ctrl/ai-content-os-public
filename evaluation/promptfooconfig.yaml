@@ -1,0 +1,14 @@
+description: 单审核与专业审核的同输入定位回放
+prompts: [lamp-v1]
+providers:
+  - id: file://replay.cjs
+    label: single
+    config: {mode: single}
+  - id: file://replay.cjs
+    label: panel
+    config: {mode: panel}
+tests:
+  - assert:
+      - type: javascript
+        value: JSON.parse(output).issues === 3 && JSON.parse(output).located.length === 3 && JSON.parse(output).freshRequests === 0
+

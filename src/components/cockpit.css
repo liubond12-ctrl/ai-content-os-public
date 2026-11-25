@@ -1,0 +1,115 @@
+/* The shell palette and navigation belong to Workspace on every route. */
+.desk:has(.cockpit-home) {
+  --ck-pad:48px; --ck-muted:var(--muted); --ck-line:var(--line);
+  isolation:isolate;
+}
+.desk:has(.cockpit-home) .content {max-width:1280px;position:relative;padding:40px var(--ck-pad) 32px}
+.desk:has(.cockpit-home) .crumb {position:relative;z-index:1;margin:0;color:var(--ck-muted);font-size:13px;min-height:40px;display:flex;align-items:center;padding-right:92px;pointer-events:none}
+.ck-ocean {position:fixed;inset:0 0 0 var(--workspace-rail-width);width:calc(100% - var(--workspace-rail-width));height:100%;pointer-events:none;z-index:-1}
+.ck-ocean[hidden] {display:none}
+.cockpit-home {font-size:16px}
+.ck-settings {position:absolute;top:40px;right:var(--ck-pad);z-index:3;color:var(--ck-muted)}
+.ck-settings summary,.ck-flow summary {cursor:pointer}
+.ck-settings summary {font-size:14px;line-height:40px;list-style:none}
+.ck-settings>div {position:absolute;right:0;width:244px;background:white;border-radius:16px;border:1px solid var(--ck-line);padding:16px}
+.ck-settings label {display:flex;gap:10px;align-items:center;min-height:40px}
+.ck-settings input[type=checkbox]{width:17px;height:17px}
+.ck-settings input[type=range]{width:100px}
+.ck-header,.ck-section-head,.ck-row,.ck-footer,.ck-empty {display:flex;align-items:center;justify-content:space-between;gap:16px}
+.ck-shortcuts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.desk .ck-hot{display:inline-flex;gap:8px;align-items:center;padding:9px 16px;min-height:44px;border:1px solid #829d9c;border-radius:8px;color:#154a47;background:#ebf4f1;font-weight:650}
+.ck-header {margin:24px 0 32px}
+.desk .ck-header h1 {font-family:inherit;font-size:40px;font-weight:700;line-height:1.2;margin:0}
+.desk .ck-primary {background:var(--olive);color:white;border-radius:12px;display:inline-flex;align-items:center;height:44px;padding:0 22px;font-weight:600;white-space:nowrap}
+.ck-stats {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:24px 0;border-block:1px solid var(--ck-line)}
+.desk .ck-stats a {color:inherit;font-size:16px}
+.ck-stats strong {display:flex;align-items:baseline;gap:8px;font-size:32px;font-weight:600;line-height:1.25;margin-top:8px;font-variant-numeric:tabular-nums}
+.ck-stats small,.ck-section-head small,.ck-meta {font-size:13px;font-weight:400;color:var(--ck-muted)}
+.ck-stats [data-tone=priority],.ck-status {color:#875733}
+.ck-stats [data-tone=alert] {color:#a73932}
+.ck-work {margin-top:48px}.ck-batch {margin-top:40px}
+.ck-section-head {margin-bottom:14px;min-height:28px}
+.desk .ck-section-head h2 {font-size:18px;font-weight:600}
+.ck-section-head small {margin-left:6px}
+.desk .ck-card {display:flex;align-items:center;gap:20px;background:white;border:1px solid rgb(41 43 50 / 8%);border-radius:16px;padding:24px 28px;color:inherit;box-shadow:0 1px 2px rgb(0 0 0 / 4%);text-decoration:none}
+.desk .ck-card:hover {border-color:rgb(41 43 50 / 16%);text-decoration:none}
+.ck-icon {display:grid;place-items:center;width:48px;height:48px;flex:none;background:#f2f1f5;border-radius:12px}
+.ck-copy {flex:1;min-width:0}
+.ck-status {font-size:14px}
+.ck-card h3,.ck-row h3 {font-weight:600;line-height:1.4;margin:6px 0 0;font-size:20px}
+.ck-card p,.ck-row p {font-size:16px;margin:8px 0;color:var(--ck-muted)}
+.ck-secondary {padding:8px 16px;background:#f1f2f6;border-radius:12px;white-space:nowrap}
+.ck-row,.ck-empty {border-block:1px solid var(--ck-line);padding:20px 0}
+.ck-row {justify-content:flex-start}.ck-row h3 {font-size:18px;margin:0}.ck-row p {margin:4px 0 0}
+.ck-dot {width:8px;height:8px;border-radius:50%;background:#727386;flex:none}
+.ck-progress {display:flex;gap:4px;width:96px;margin-left:auto}
+.ck-progress i {height:4px;background:#8d91a7;border-radius:4px}
+.ck-progress .queued {background:#dfe1e7}
+.ck-flow {margin:32px 0 0}.ck-flow>summary {font-weight:600}
+.ck-flow .workflow {margin-top:12px}
+.ck-footer {margin-top:48px;font-size:16px;flex-wrap:wrap}
+.ck-footer div {display:flex;flex-wrap:wrap;gap:8px 20px}
+.desk .ck-footer a,.desk .ck-section-head a,.desk .ck-row a {color:var(--ck-muted)}
+@media(min-width:1440px){.desk:has(.cockpit-home) .content{width:calc(100% - 312px)}}
+@media(max-width:1439px){.desk:has(.cockpit-home){--ck-pad:32px}}
+@media(max-width:1023px){
+  .ck-stats{grid-template-columns:repeat(3,1fr)}
+  .desk .ck-card{display:grid;grid-template-columns:48px 1fr}
+  .ck-secondary{grid-column:1/-1;text-align:center}
+}
+@media(max-width:639px){
+  .desk:has(.cockpit-home){--ck-pad:16px}
+  .desk .ck-header h1{font-size:30px}.ck-header,.ck-footer,.ck-row{flex-wrap:wrap}
+  .ck-stats{grid-template-columns:repeat(2,1fr)}.ck-stats>a:first-child{grid-column:1/-1}
+  .ck-ocean{display:none}.desk .ck-card{padding:18px 16px}
+}
+
+/* The legacy form/detail defaults must not turn the home toolbar into a card. */
+.desk .content main.cockpit-home>.ck-settings,
+.desk .content main.cockpit-home>.ck-flow {
+  background:transparent;border:0;border-radius:0;padding:0;margin:0;
+}
+.desk .content main.cockpit-home>.ck-flow {margin-top:32px}
+.desk .content main.cockpit-home>.ck-settings>summary {padding:0;min-height:40px;font-weight:400}
+.desk .content main.cockpit-home>.ck-flow>summary {padding:0;min-height:40px}
+.desk .content main.cockpit-home>.ck-header {margin-bottom:32px}
+.desk .content main.cockpit-home>.ck-header h1 {margin:0}
+.desk .cockpit-home small {background:none;padding:0;vertical-align:baseline;font-size:13px;font-weight:400}
+@media(max-width:760px){.ck-ocean{left:0;width:100%}}
+
+.ck-work .ck-card + .ck-card { margin-top:8px }
+.ck-work + .ck-stats { margin-top:26px }
+.ck-todos {
+  margin-top: 24px;
+  padding: 18px clamp(12px,2vw,24px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb,var(--olive) 7%,var(--sand));
+}
+.ck-recent { margin-top: 28px; }
+.ck-recent .ck-section-head { margin-bottom: 4px; }
+.desk .ck-recent-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  scroll-margin-top: 24px;
+}
+.desk .ck-recent-item:hover { background: var(--surface); text-decoration: none; }
+.ck-recent-item .ck-icon { width: 32px; height: 32px; border-radius: 7px; }
+.desk .ck-recent-item h3 { margin: 0; font-size: 16px; line-height: 1.45; }
+.ck-recent-item .ck-secondary {
+  color: var(--olive);
+  background: transparent;
+  padding: 0;
+  font-size: 14px;
+  grid-column: auto;
+}
+@media(max-width:639px) {
+  .desk .ck-recent-item { grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+  .ck-recent-item .ck-icon { display: none; }
+  .ck-recent-item .ck-secondary { font-size: 13px; }
+}

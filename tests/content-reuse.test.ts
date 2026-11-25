@@ -1,0 +1,45 @@
+import {afterEach,expect,it,vi} from "vitest";
+import {mkdtempSync,rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {randomUUID} from "node:crypto";
+import {contentList,openContent,similar} from "../src/studio/content-index";
+import {createBlankArticle,saveProductionDraft} from "../src/studio/production";
+import {changeArticle} from "../src/studio/article-store";
+import {fromText} from "../src/studio/article-document";
+import {workOverview} from "../src/studio/work-overview";
+let dir="";
+function setup(){dir=mkdtempSync(join(tmpdir(),"reuse-test-"));vi.stubEnv("STUDIO_DB",join(dir,"studio.sqlite"));}
+afterEach(()=>{vi.unstubAllEnvs();if(dir)rmSync(dir,{recursive:true,force:true});});
+const list=(obj:Record<string,string>={})=>contentList(new URLSearchParams(obj));
+it("正文改名、回退与发布版本独立；归档不停止任务",()=>{
+  setup();const id=createBlankArticle("厨房抽屉"),q={q:"折叠，竖放"};
+  const first=changeArticle({action:"publish",taskId:id,baseVersion:1,revision:0,title:"新标题",document:fromText("先折叠，竖放。")});
+  expect(list(q).rows[0].version).toBe(first.head.version);
+  const db=openContent();db.prepare("INSERT INTO content_destinations VALUES(?,2,'已发布','2026-11-08','https://example.org/a')").run(id);
+  db.prepare("INSERT INTO content_notes VALUES(?,1,'厨房','抽屉,折叠')").run(id);
+  db.prepare("INSERT INTO archived_tasks VALUES(?)").run(id);
+  db.prepare("UPDATE production_queue SET status='受阻' WHERE task=?").run(id);db.close();
+  const result=changeArticle({action:"restore",taskId:id,revision:1,baseVersion:2,version:1});
+  expect(result.head.version).toBe(3);expect(list(q).total).toBe(0);
+  expect(list({archived:"1",q:"竖放"}).total).toBe(0);
+  const row=list({archived:"1",favorite:"1",series:"厨房",tag:"折叠",destination:"已发布"}).rows[0];
+  expect(row.kind).toBe("自由文章");expect(row.publishedVersion).toBe(2);expect(row.version).toBe(3);
+  expect(workOverview().todos[0].id).toBe(id);
+  expect(similar("折叠","")[0].archived).toBe(1);expect(similar("折叠",id)).toHaveLength(0);
+  const restored=openContent(true);restored.prepare("DELETE FROM archived_tasks WHERE id=?").run(id);restored.close();
+  expect(list().rows[0].id).toBe(id);
+});
+it("同时间的两页需求草稿稳定排序；更新与删除追踪",()=>{
+  setup();const db=openContent(),stamp="2026-11-01T16:30:00Z",ids=Array.from({length:51},()=>randomUUID()).sort();
+  const write=db.prepare("INSERT INTO production_drafts VALUES(?,1,?,?)");
+  for(const id of ids)write.run(id,JSON.stringify({id,topic:"问号？",kind:"口播稿",platform:"抖音",account:"one"}),stamp);
+  db.close();
+  const filters={account:"one",q:"？",status:"需求草稿",platform:"抖音",kind:"口播稿",from:"2026-11-02",to:"2026-11-02"};
+  vi.stubEnv("TZ","Asia/Shanghai");
+  expect([1,2,3].flatMap(n=>list({...filters,page:String(n)}).rows.map(r=>r.id))).toEqual(ids);
+  saveProductionDraft({id:ids[0],version:1,topic:"新要求",kind:"自由文章",goal:"自由表达"});
+  expect(list({q:"新要求"}).total).toBe(1);
+  const next=openContent();next.prepare("DELETE FROM production_drafts WHERE id=?").run(ids[0]);next.close();
+  expect(list({q:"新要求"}).total).toBe(0);
+});

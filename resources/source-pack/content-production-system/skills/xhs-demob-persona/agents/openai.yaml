@@ -1,0 +1,3 @@
+display_name: xhs-demob-persona 写作演示规则
+short_description: 为虚构示例生成可审阅的草稿。
+default_prompt: 根据当前任务和经确认的资料起草。

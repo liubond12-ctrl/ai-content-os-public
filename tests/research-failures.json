@@ -1,0 +1,186 @@
+[
+  {
+    "id": "2d297dce-fd2b-4aa6-b84a-cdc228285497",
+    "input": {
+      "persona": "general",
+      "topic": "为什么 AI 写出来的内容，总是有一股 AI 味？",
+      "audience": "经常使用 AI 辅助写作的新媒体运营、内容创作者。",
+      "reference": "",
+      "format": "图文文章",
+      "goal": "通过具体的写作场景，说明为什么 AI 生成的内容容易空洞、模板化，以及如何让表达更加自然。",
+      "style": "生成一篇 250–350 字的中文图文短文。以具体场景或有吸引力的问题开头，有明确观点和具体例子，语言自然、克制，避免鸡汤、营销套话和分点式说教。不编造调查数据或真实人物经历。",
+      "mode": "semantic",
+      "generate": false
+    },
+    "decisions": [
+      {
+        "round": 1,
+        "availableIds": [
+          "general/reference/scene-editing/v1"
+        ],
+        "action": "search",
+        "reason": "现有证据只有一条关于抽象判断与虚构动作并列的修改技法，缺少解释“AI味”成因（空洞、模板化）和具体写作场景的技法。需要补查创作方法，而不是现实事实。",
+        "query": "AI生成内容 模板化 空洞 成因 写作场景 表达修改 具体细节",
+        "mode": "semantic",
+        "needsFacts": false,
+        "questions": [],
+        "coreGaps": [],
+        "limits": [
+          "不能编造调查数据或真实人物经历，只能使用虚构场景或动作举例",
+          "现有知识库只提供创作方法，不提供关于AI写作效果的实证事实"
+        ],
+        "sources": [
+          "general/reference/scene-editing/v1"
+        ]
+      },
+      {
+        "round": 2,
+        "availableIds": [
+          "general/reference/scene-editing/v1"
+        ],
+        "action": "finish",
+        "reason": "现有证据仅提供一条关于“抽象判断与具体动作并列展示”的写作技法片段，与主题“AI 味成因及如何让表达自然”部分相关，但缺口明确：缺乏对 AI 生成文本空洞、模板化成因的具体材料，也缺乏可支撑场景描写与判断的更多技法。已无合理补查方向——本库为创作方法库，不含 AI 写作机制或语言特征的事实性材料，继续检索同类索引不太可能补齐成因解释。",
+        "query": "",
+        "mode": "semantic",
+        "needsFacts": false,
+        "questions": [],
+        "coreGaps": [],
+        "limits": [
+          "无法证实“AI 味”的具体语言特征、成因机制或普遍性，只能依据创作方法描述撰写观察与技巧建议。",
+          "不能引用真实调查数据或真实人物经历来佐证观点。",
+          "写作技法片段仅一条，可借鉴的“抽象判断＋虚构动作”手法有限，场景举例需自行构建且标明为虚构。"
+        ],
+        "sources": [
+          "general/reference/scene-editing/v1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "general/reference/scene-editing/v1",
+        "path": "general/reference/scene-editing/v1",
+        "sha256": "06662bd1a8823f9544cbfa98cf6639a128fcc1dca2cd258405a63f4d4622071e",
+        "heading": "具体场景 / 自然表达",
+        "location": "创作方法",
+        "offset": 0,
+        "text": "并列展示一句抽象判断与一个虚构动作，再指出读者能从动作中判断什么。\n适用：表达技巧、写作修改\n不适用：借用未经核实的效果数据",
+        "persona": "shared",
+        "personaReason": "general 独立资料库",
+        "kind": "expression-rule",
+        "kindReason": "创作技法参考，不能作为事实依据",
+        "verified": false,
+        "publicationDate": null,
+        "tags": [
+          "图文文章",
+          "解释表达",
+          "具体场景",
+          "自然表达"
+        ],
+        "sources": [
+          {
+            "path": "工作台原创虚构样例",
+            "modifiedAt": 1793577600000,
+            "associatedPersonas": []
+          }
+        ],
+        "temporal": {
+          "status": "unknown",
+          "publicationDate": "2026-11-02T00:00:00Z",
+          "applicableDate": "仅借鉴方法",
+          "dateMentions": [],
+          "reason": "未经事实核验"
+        },
+        "similarity": 0.659090423701727,
+        "score": 6,
+        "semanticRank": 1,
+        "finalRank": 1
+      }
+    ],
+    "originalStatus": "blocked"
+  },
+  {
+    "id": "fd2dd556-aad8-41f0-b50d-2a2956b8e351",
+    "input": {
+      "persona": "general",
+      "topic": "为什么 AI 写出来的内容，总有一股 AI 味？",
+      "audience": "AI 辅助写作的新媒体运营、内容创作者",
+      "reference": "",
+      "format": "图文文章",
+      "goal": "分析模板化、空洞表达及改善方法",
+      "style": "250–350 字、自然克制、具体例子、不编造数据或真实经历",
+      "mode": "semantic",
+      "generate": false
+    },
+    "decisions": [
+      {
+        "round": 1,
+        "availableIds": [
+          "general/reference/scene-editing/v1"
+        ],
+        "action": "finish",
+        "reason": "当前只有一条关于“抽象判断＋虚构动作”的写作技法片段，足以支撑“把模板化、空洞的表达改成具体场景”这一改善建议；再检索也不会补出关于AI写作成因或受众感知的可核实事实。另外，用户明确要求不编造数据或真实经历，因此这部分只能以观察和经验边界来表达。",
+        "query": "",
+        "mode": "semantic",
+        "needsFacts": true,
+        "questions": [
+          "分析“AI味”时，模板化句式和空洞表达分别有哪些具体表征？",
+          "新媒体运营和内容创作者能否通过把抽象判断改写为具体动作，来减少AI感？"
+        ],
+        "coreGaps": [
+          "关于AI生成文本“模板化、空洞”成因的可核实资料",
+          "内容创作者实际使用AI辅助写作的体验或案例"
+        ],
+        "limits": [
+          "不提供具体效果数据或真实案例，只能做表达层面的示例与改写建议",
+          "“AI味”的感受有主观差异，无法给出统一判定标准",
+          "字数控制在250–350字，难以展开完整的成因分类"
+        ],
+        "sources": [
+          "general/reference/scene-editing/v1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "id": "general/reference/scene-editing/v1",
+        "path": "general/reference/scene-editing/v1",
+        "sha256": "06662bd1a8823f9544cbfa98cf6639a128fcc1dca2cd258405a63f4d4622071e",
+        "heading": "具体场景 / 自然表达",
+        "location": "创作方法",
+        "offset": 0,
+        "text": "并列展示一句抽象判断与一个虚构动作，再指出读者能从动作中判断什么。\n适用：表达技巧、写作修改\n不适用：借用未经核实的效果数据",
+        "persona": "shared",
+        "personaReason": "general 独立资料库",
+        "kind": "expression-rule",
+        "kindReason": "创作技法参考，不能作为事实依据",
+        "verified": false,
+        "publicationDate": null,
+        "tags": [
+          "图文文章",
+          "解释表达",
+          "具体场景",
+          "自然表达"
+        ],
+        "sources": [
+          {
+            "path": "工作台原创虚构样例",
+            "modifiedAt": 1793577600000,
+            "associatedPersonas": []
+          }
+        ],
+        "temporal": {
+          "status": "unknown",
+          "publicationDate": "2026-11-02T00:00:00Z",
+          "applicableDate": "仅借鉴方法",
+          "dateMentions": [],
+          "reason": "未经事实核验"
+        },
+        "similarity": 0.5791640141919012,
+        "score": 3,
+        "semanticRank": 1,
+        "finalRank": 1
+      }
+    ],
+    "originalStatus": "blocked"
+  }
+]

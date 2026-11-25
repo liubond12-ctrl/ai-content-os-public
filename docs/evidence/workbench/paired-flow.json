@@ -1,0 +1,58 @@
+[
+  {
+    "approach": "单审核",
+    "tasks": 1,
+    "delivered": 1,
+    "blocked": 0,
+    "unknown": 0,
+    "initialReviewRequests": 1,
+    "completeFlow": {
+      "knownEstimatedUsd": 0,
+      "usdPricedCalls": 0,
+      "knownEstimatedCny": 0,
+      "unpricedCalls": 0,
+      "actualBilledCny": null,
+      "requests": 3,
+      "unknownUsageCalls": 0,
+      "knownInputTokens": 300,
+      "knownOutputTokens": 150,
+      "knownTotalTokens": 450,
+      "totalTokens": 450
+    },
+    "requestsSucceeded": 3,
+    "durationMs": 62,
+    "finalText": "虚构故事：小舟停在岸边。",
+    "sameExpectedRevision": true,
+    "humanPreference": null,
+    "estimatedProviderCharge": 0,
+    "simulation": true
+  },
+  {
+    "approach": "多角色",
+    "tasks": 1,
+    "delivered": 1,
+    "blocked": 0,
+    "unknown": 0,
+    "initialReviewRequests": 2,
+    "completeFlow": {
+      "knownEstimatedUsd": 0,
+      "usdPricedCalls": 0,
+      "knownEstimatedCny": 0,
+      "unpricedCalls": 0,
+      "actualBilledCny": null,
+      "requests": 5,
+      "unknownUsageCalls": 0,
+      "knownInputTokens": 500,
+      "knownOutputTokens": 250,
+      "knownTotalTokens": 750,
+      "totalTokens": 750
+    },
+    "requestsSucceeded": 5,
+    "durationMs": 92,
+    "finalText": "虚构故事：小舟停在岸边。",
+    "sameExpectedRevision": true,
+    "humanPreference": null,
+    "estimatedProviderCharge": 0,
+    "simulation": true
+  }
+]

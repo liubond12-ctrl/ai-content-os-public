@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "batch",
+    "title": "批次进展",
+    "text": "纸上观察、口袋工作室\n共 2 条 · 已生成 2 · 待审核 0 · 需处理 2",
+    "task": "",
+    "version": 0,
+    "review": "",
+    "binding": "6322d10b-1025-48bc-a14e-93f6b86ef045",
+    "options": []
+  },
+  {
+    "task": "70e52e6e-5370-4552-b137-d65933d5ce43",
+    "version": 6,
+    "review": "9c0ed450-14ca-47f5-802f-87aa24496f14",
+    "binding": "3d61a939c3983f82c4b9d1f42b6ad179ed7189a0cbd588822a94bd715402a519",
+    "kind": "choice",
+    "title": "主观取舍 · 分歧演练：窗边的停顿",
+    "text": "原句：她停下来。\nA · 保留原句：保留复沓节奏\nB · 删除原句：删除无信息重复",
+    "options": [
+      "A",
+      "B",
+      "later"
+    ]
+  },
+  {
+    "task": "b169c011-260d-44e1-9d02-41e74894e1aa",
+    "version": 6,
+    "review": "9d8fe693-c555-4e6b-b236-00eb14d8266a",
+    "binding": "dd29318c0d6afdba1d421432c839b104b8d03cb22bf37dc2c43e3237a9c12fac",
+    "kind": "blocked",
+    "title": "需要处理 · 核验演练：虚构纸张",
+    "text": "关键事实或安全问题待核验，Judge 无权解除\n下一步：在电脑工作台补充来源并核对原句。",
+    "options": [
+      "later"
+    ]
+  }
+]

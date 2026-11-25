@@ -1,0 +1,146 @@
+{
+  "id": "1b7a24e7-6b36-4921-894f-3babfec587f1",
+  "input": {
+    "persona": "general",
+    "topic": "为什么 AI 写出来的内容，总有一股 AI 味？",
+    "audience": "经常使用 AI 辅助写作的新媒体运营、内容创作者，具备基本的 AI 工具使用经验，希望提升内容质量、减少模板化表达。",
+    "reference": "",
+    "format": "图文文章",
+    "goal": "通过对比 AI 写作中抽象、模板化的表达与具体、自然的表达，分析哪些写法容易产生“AI 味”，并给出可操作的修改方法，让读者能够直接应用到自己的内容创作中。",
+    "style": "生成一篇 250–350 字的中文图文短文。以具体写作场景或有吸引力的问题开头，通过原创虚构的文本例子，对比空洞表达与具体表达。语言自然、克制、有观点，避免鸡汤、营销套话和机械分点。不编造调查数据、真实人物经历，也不对未经证实的 AI 生成机制或普遍成因作确定结论。",
+    "mode": "semantic",
+    "generate": false,
+    "writingScope": "text-analysis"
+  },
+  "decisions": [
+    {
+      "round": 1,
+      "availableIds": [
+        "general/reference/scene-editing/v1"
+      ],
+      "action": "search",
+      "reason": "现有片段只给出“抽象判断+虚构动作”这一对比方法，缺少系统分析“AI味”成因的写作方法（如模板化措辞、空泛概括、缺少具体细节、套话式结构）以及可操作的逐句修改策略，需补查创作方法以支撑文章的分析框架与示例设计。",
+      "query": "AI味 模板化表达 空洞抽象 具体细节 写作修改 对比 套话 结构",
+      "mode": "keyword",
+      "needsFacts": false,
+      "questions": [],
+      "optionalQuestions": [
+        "AI生成文本常见措辞特征（如“首先/其次”“值得注意的是”“赋能”“闭环”）在创作方法中是否有可借用的归纳",
+        "如何用虚构例子对比空洞表达与具体表达而不涉及真实数据或人物"
+      ],
+      "coreGaps": [],
+      "limits": [
+        "不得对AI生成机制或普遍成因作确定结论，只能以写作观察和原创虚构示例呈现",
+        "不编造调查数据、真实人物经历或效果验证",
+        "250–350字篇幅限制，分析需高度浓缩"
+      ],
+      "sources": [
+        "general/reference/scene-editing/v1"
+      ]
+    },
+    {
+      "round": 2,
+      "availableIds": [
+        "general/reference/scene-editing/v1"
+      ],
+      "action": "search",
+      "reason": "现有证据只给出一条“抽象判断加虚构动作对比”的编辑方法，缺少可支撑对比示例的原创虚构素材，以及区分模板化表达与自然表达的具体操作线索；因此补查方法性材料，以拟定短文规划。",
+      "query": "抽象表达与具体动作对比 原创虚构示例 修改模板化句子 具体场景写作",
+      "mode": "semantic",
+      "needsFacts": false,
+      "questions": [],
+      "optionalQuestions": [
+        "“AI 味”有哪些可被读者辨识的写法特征，例如名词化、泛化判断、缺少动作细节",
+        "如何在不虚构真实数据的前提下，用虚构文本示例展示修改前后的差异"
+      ],
+      "coreGaps": [],
+      "limits": [
+        "不能对 AI 生成机制或“AI 味”的普遍成因作确定结论",
+        "不能编造调查数据、真实人物经历或效果验证",
+        "案例人物、参数与效果仅作原创虚构示例，不作为事实"
+      ],
+      "sources": [
+        "general/reference/scene-editing/v1"
+      ]
+    },
+    {
+      "round": 3,
+      "availableIds": [
+        "general/reference/scene-editing/v1"
+      ],
+      "action": "finish",
+      "reason": "已有人物设定、写作范围与一条方法片段，足以按 text-analysis 范围完成：用户目标是通过原创虚构示例对比抽象与具体表达并给出改法，样本片段正好提供“并列抽象判断+虚构动作”的写法。无需补查事实，不将 AI 生成机制或效果数据写成事实。",
+      "query": "",
+      "mode": "semantic",
+      "needsFacts": false,
+      "questions": [],
+      "optionalQuestions": [
+        "AI 输出模板化表达在语言特征上有哪些常见可观察模式（如笼统判断、缺少具体动作与场景）？",
+        "自媒体短文中减少“AI 味”的改法能否进一步按场景细分（开头、转折、结尾）？"
+      ],
+      "coreGaps": [],
+      "limits": [
+        "不对 AI 生成机制或“AI 味”的普遍成因作确定结论",
+        "不编造调查数据或真实人物经历",
+        "示例须标注为原创虚构文本，不作为真实案例或效果证据",
+        "250–350 字限制下只能做精炼对比，不展开系统性方法论"
+      ],
+      "sources": [
+        "general/reference/scene-editing/v1"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "general/reference/scene-editing/v1",
+      "path": "general/reference/scene-editing/v1",
+      "sha256": "06662bd1a8823f9544cbfa98cf6639a128fcc1dca2cd258405a63f4d4622071e",
+      "heading": "具体场景 / 自然表达",
+      "location": "创作方法",
+      "offset": 0,
+      "text": "并列展示一句抽象判断与一个虚构动作，再指出读者能从动作中判断什么。\n适用：表达技巧、写作修改\n不适用：借用未经核实的效果数据",
+      "persona": "shared",
+      "personaReason": "general 独立资料库",
+      "kind": "expression-rule",
+      "kindReason": "创作技法参考，不能作为事实依据",
+      "verified": false,
+      "publicationDate": null,
+      "tags": [
+        "图文文章",
+        "解释表达",
+        "具体场景",
+        "自然表达"
+      ],
+      "sources": [
+        {
+          "path": "工作台原创虚构样例",
+          "modifiedAt": 1793577600000,
+          "associatedPersonas": []
+        }
+      ],
+      "temporal": {
+        "status": "unknown",
+        "publicationDate": "2026-11-02T00:00:00Z",
+        "applicableDate": "仅借鉴方法",
+        "dateMentions": [],
+        "reason": "未经事实核验"
+      },
+      "similarity": 0.7532097439571753,
+      "score": 6,
+      "semanticRank": 1,
+      "finalRank": 1
+    }
+  ],
+  "approvedInput": {
+    "persona": "general",
+    "topic": "为什么 AI 写出来的内容，总有一股 AI 味？",
+    "audience": "经常使用 AI 辅助写作的新媒体运营、内容创作者，具备基本的 AI 工具使用经验，希望提升内容质量、减少模板化表达。",
+    "reference": "",
+    "format": "图文文章",
+    "goal": "通过对比 AI 写作中抽象、模板化的表达与具体、自然的表达，分析哪些写法容易产生“AI 味”，并给出可操作的修改方法，让读者能够直接应用到自己的内容创作中。",
+    "style": "生成一篇 250–350 字的中文图文短文。以具体写作场景或有吸引力的问题开头，通过原创虚构的文本例子，对比空洞表达与具体表达。语言自然、克制、有观点，避免鸡汤、营销套话和机械分点。不编造调查数据、真实人物经历，也不对未经证实的 AI 生成机制或普遍成因作确定结论。",
+    "mode": "semantic",
+    "generate": false,
+    "writingScope": "text-analysis"
+  }
+}

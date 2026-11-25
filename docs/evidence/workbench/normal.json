@@ -1,0 +1,15 @@
+{
+  "id": "09415408-1034-46c6-8138-262d4b843135",
+  "title": "最后一张校样",
+  "version": "8",
+  "simulation": "仅本机模型 HTTP 响应模拟；普通工作台页面、研究写作审核、额度与回执使用生产实现",
+  "receipts": [
+    "research",
+    "writing",
+    "review"
+  ],
+  "source": [
+    "general/reference/scene-editing/v1"
+  ],
+  "exportExact": true
+}

@@ -1,0 +1,2 @@
+import {ContentPackage} from "@/components/Production";
+export default async function Page({searchParams}:{searchParams:Promise<{id?:string}>}){return <ContentPackage id={(await searchParams).id??""}/>;}

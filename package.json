@@ -1,0 +1,42 @@
+{
+  "name": "context-engineering-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "model:download": "powershell -ExecutionPolicy Bypass -File scripts/download-embedding.ps1",
+    "index:vectors": "node scripts/index-vectors.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "@larksuiteoapi/node-sdk": "1.76.0",
+    "@platejs/basic-nodes": "53.0.0",
+    "next": "16.4.3",
+    "platejs": "53.5.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.4.3",
+    "playwright": "1.61.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  },
+  "packageManager": "npm@11.17.0",
+  "overrides": {
+    "@huggingface/transformers": {
+      "sharp": "0.35.5"
+    }
+  }
+}
