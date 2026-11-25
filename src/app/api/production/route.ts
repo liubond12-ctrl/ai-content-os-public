@@ -1,6 +1,7 @@
 import {z} from "zod";
 import {createBlankArticle,enqueueProductionDrafts,productionView,saveEntity,saveProductionDraft,submitBatch,queueAction,previewDraft,draftSchema} from "@/studio/production";
 import {productionDb} from "@/studio/production-db";
+import {matrixMatches} from "@/studio/matrix";
 export const runtime="nodejs";
 export function GET(req:Request){const params=new URL(req.url).searchParams;return Response.json(productionView(params.get("view")==="configuration",params.get("draft")??""),{headers:{"Cache-Control":"no-store"}});}
 export async function POST(req:Request){
@@ -13,6 +14,10 @@ export async function POST(req:Request){
     if(body.action==="enqueueDrafts")return Response.json(enqueueProductionDrafts(body.drafts));
     if(body.action==="draft")return Response.json(saveProductionDraft(body.value));
     if(body.action==="preview")return Response.json(z.array(draftSchema).parse(body.drafts).map(previewDraft));
+    if(body.action==="matrix"){
+      const drafts=z.array(draftSchema).max(100).parse(body.drafts),db=productionDb();
+      try{return Response.json(drafts.map(draft=>matrixMatches(db,draft,drafts)));}finally{db.close();}
+    }
     if(body.action==="batch"||body.action==="single"){
       const id=submitBatch({id:body.id,drafts:z.array(draftSchema).parse(body.drafts),preview:body.preview,
         tokenLimit:body.tokenLimit,requestLimit:body.requestLimit,authorizeText:body.authorizeText===true},body.action==="single"),db=productionDb();

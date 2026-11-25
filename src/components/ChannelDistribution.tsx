@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState,type ReactNode} from "react";
 import {channelContent,type ChannelContent,type ChannelDerivation,type ChannelVariant} from "@/types/channel-derivation";
 import {channelDelivery,channelFields,channelRadar} from "@/studio/channel-delivery";
+import {geoReport} from "@/studio/geo";
 import "./channel-distribution.css";
 
 type Entry={saved:ChannelDerivation|null;content?:ChannelContent};
@@ -132,6 +133,7 @@ function ChannelEditor({value,change}:{value:ChannelContent;change:(content:Chan
 
 function ChannelRadar({content}:{content:ChannelContent}){
   const {matches,keywords,hooks,cta,format}=channelRadar(content);
+  const geo=geoReport(channelFields(content).map(field=>field.text).join("\n"));
   return <aside className="channel-radar" aria-label="合规雷达">
     <h3>合规雷达</h3><p>本地词表预检。命中请结合上下文人工复核。</p>
     <p><strong>{matches.length?"词面命中 "+matches.length+" 处":"未命中当前词表"}</strong></p>
@@ -146,5 +148,7 @@ function ChannelRadar({content}:{content:ChannelContent}){
       {hooks!==null&&<li>不同钩子 {hooks}/3</li>}
       {format!==null&&<li>{content.variant==="wechat"?"引用框、重点、步骤":"Emoji 分段"} {format?"已具备":"待完善"}</li>}
     </ul>
+    <h4>GEO 友好度 · {geo.filter(item=>item.met).length}/4</h4><p>启发式检查，供作者核对文案。</p>
+    <ul>{geo.map(item=><li key={item.label}><strong>{item.label} · {item.met?"检测到":"可补充"}</strong>{!item.met&&<p>{item.advice}</p>}</li>)}</ul>
   </aside>;
 }

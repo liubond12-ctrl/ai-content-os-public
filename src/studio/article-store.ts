@@ -3,7 +3,8 @@ import {event} from "./production-db";
 import {DatabaseSync} from "node:sqlite";
 import {z} from "zod";
 import type {Task} from "./tasks";
-import {documentSchema,fromText,quoteRange,plainText,type ArticleDocument} from "./article-document";
+import {documentSchema,fromText,chapterDocument,stabilizeBlocks,quoteRange,plainText,type ArticleDocument} from "./article-document";
+import type {ChapterRecord} from "../types/sprint5";
 import {endingEditId} from "../types/multi-agent-review";
 import {enqueueLedger} from "./feishu-ledger";
 import {resolveFeishuCard,savedConflictEdit} from "./feishu-resolution";
@@ -16,8 +17,9 @@ export interface ArticleSnapshot {
   confirmed?:boolean; decision?:{review:string;issue:number;reason:string;choice:string;opinionId?:string};
   revisionReviewId?:string;parentVersion?:number;restoredFrom?:number;createdAt:string;reviewLabel:string;
   endingInserted?:boolean;
+  chapters?:ChapterRecord[];
 }
-export interface ArticleDraft {revision:number;baseVersion:number;title:string;document:ArticleDocument;updatedAt:string;reviewEdits?:string[]}
+export interface ArticleDraft {revision:number;baseVersion:number;title:string;document:ArticleDocument;updatedAt:string;reviewEdits?:string[];chapters?:ChapterRecord[]}
 export interface ArticleState {kind?:import("zod").infer<typeof import("./production-schema").contentKind>;versions:ArticleSnapshot[];head:ArticleSnapshot;draft:ArticleDraft|null}
 export class ArticleUnavailable extends Error{}
 export class ArticleConflict extends Error{}
@@ -37,7 +39,7 @@ function versions(db:DatabaseSync,id:string):ArticleSnapshot[]{
     const task:Task=JSON.parse(String(row.payload)),a=task.article;
     if(!a||a.version!==Number(row.rev)||a.researchVersion!==task.research?.version)return [];
     return [{taskId:id,version:a.version,sourceTaskRevision:Number(row.rev),researchVersion:a.researchVersion,
-      title:a.title,body:a.body,document:fromText(a.body),formatVersion:1 as const,citations:a.citations,
+      title:a.title,body:a.body,document:a.chapters?chapterDocument(a.body,a.chapters):fromText(a.body),formatVersion:1 as const,citations:a.citations,chapters:a.chapters,
       origin:"model" as const,model:a.model,createdAt:task.records.at(-1)?.ended??"",reviewLabel:a.reviewLabel??"待人工审核"}];
   });
   const edited:ArticleSnapshot[]=db.prepare("SELECT payload FROM article_snapshots WHERE task_id=?").all(id).map(r=>JSON.parse(String(r.payload)));
@@ -62,7 +64,7 @@ export function articleForReview(id:string,version:number){
     if(task.research?.version!==article.researchVersion)throw Error("文章研究依赖不一致");
     // Retain original task and evidence for existing provider permission/budget checks.
     task.article={title:article.title,body:article.body,citations:article.citations,version:article.version,
-      researchVersion:article.researchVersion,model:article.origin==="model"?article.model??"unknown":"human-edit"};
+      researchVersion:article.researchVersion,model:article.origin==="model"?article.model??"unknown":"human-edit",chapters:article.chapters};
     return task;
   }finally{db.close();}
 }
@@ -81,7 +83,7 @@ export function changeArticle(raw:unknown){
     const result=changeArticleInTransaction(db,raw);db.exec("COMMIT");return result;
   }catch(error){if(db.isTransaction)db.exec("ROLLBACK");throw error;}finally{db.close();}
 }
-export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:import("./professional-review").Opinion){
+export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:import("./professional-review").Opinion,rewrite?:ChapterRecord){
     if(!db.isTransaction)throw Error("文章写入需要事务");
     const input=articleMutation.parse(raw),current=articleStateInTransaction(db,input.taskId);
     const previous=current.draft?.baseVersion===current.head.version?current.draft.reviewEdits??[]:[];
@@ -118,6 +120,17 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
         leaf.text=leaf.text.slice(0,range.anchor.offset)+input.replacement+leaf.text.slice(range.focus.offset);
       }
     }else{title=input.title;document=input.document;}
+    const chapterSource=input.action==="restore"?current.versions.find(v=>v.version===input.version)?.chapters:
+      current.draft?.chapters??current.head.chapters;
+    document=stabilizeBlocks(document,input.action==="restore"?document:current.draft?.document??current.head.document);
+    const chapters=chapterSource?.filter(chapter=>document.some(block=>block.sectionId===chapter.id)).map(chapter=>{
+      const source=chapter.id===rewrite?.id?rewrite:chapter;
+      const blocks=document.filter(block=>block.sectionId===chapter.id).slice(1);
+      return {...source,paragraphs:blocks.flatMap(block=>{
+        const text=plainText([block]);
+        return text.trim()?[{text,sources:source.paragraphs.find(row=>row.text===text)?.sources??[]}]:[];
+      })};
+    });
     if(input.action!=="draft"){
       const taskRow=db.prepare("SELECT payload FROM versions WHERE id=? ORDER BY rev DESC LIMIT 1").get(input.taskId);
       const task:Task=JSON.parse(String(taskRow?.payload));
@@ -140,7 +153,8 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
       const maxTask=Number(db.prepare("SELECT MAX(rev) AS v FROM versions WHERE id=?").get(input.taskId)?.v??0);
       baseVersion=Math.max(maxTask,current.head.version)+1;
       const source=input.action==="restore"?current.versions.find(v=>v.version===input.version)!:current.head;
-      const snapshot:ArticleSnapshot={...source,title,document,body:plainText(document),version:baseVersion,
+      const snapshot:ArticleSnapshot={...source,title,document,body:plainText(document),version:baseVersion,chapters,
+        citations:chapters?[...new Set(chapters.flatMap(chapter=>chapter.paragraphs.flatMap(row=>row.sources)))]:source.citations,
         confirmed:input.action==="publish",revisionReviewId:undefined,decision:input.action==="decide"?{review:input.review,issue:input.issue,reason:input.reason,choice:input.choice,opinionId:opinion?.id}:undefined,origin:input.action==="restore"?"restore":"human",model:undefined,parentVersion:current.head.version,
         restoredFrom:input.action==="restore"?input.version:undefined,createdAt:new Date().toISOString(),
         endingInserted:input.action==="restore"||input.action==="decide"?source.endingInserted:previous.includes(endingEditId)||source.endingInserted,
@@ -152,7 +166,7 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
       : input.action==="restore"
         ? (current.versions.find(v=>v.version===input.version)?.endingInserted?[endingEditId]:[])
         : (previous.includes(endingEditId)||current.head.endingInserted?[endingEditId]:[]);
-    const draft:ArticleDraft={revision:input.revision+1,baseVersion,title,document,updatedAt:new Date().toISOString(),reviewEdits};
+    const draft:ArticleDraft={revision:input.revision+1,baseVersion,title,document,updatedAt:new Date().toISOString(),reviewEdits,chapters};
     db.prepare("INSERT INTO article_drafts VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload")
       .run(input.taskId,draft.revision,JSON.stringify(draft));
     const result=articleStateInTransaction(db,input.taskId);
@@ -172,7 +186,8 @@ export function appendRevision(db:DatabaseSync,id:string,a:import("./agents").Ar
   const current=articleStateInTransaction(db,id);if(current.kind)validateBody(current.kind,a.body);if(current.head.version!==parent)throw new ArticleConflict("正式版本已变化");
   const max=Number(db.prepare("SELECT MAX(rev) AS v FROM versions WHERE id=?").get(id)?.v??0);
   const version=Math.max(max,current.head.version)+1;
-  const snapshot:ArticleSnapshot={...current.head,title:a.title,body:a.body,document:fromText(a.body),citations:a.citations,
+  const document=a.chapters?chapterDocument(a.body,a.chapters):fromText(a.body);
+  const snapshot:ArticleSnapshot={...current.head,title:a.title,body:a.body,document,citations:a.citations,chapters:a.chapters,
     version,confirmed:false,decision:undefined,revisionReviewId,origin:"ai-revision",model:a.model,parentVersion:parent,createdAt:new Date().toISOString(),reviewLabel:"AI 修订，待审核"};
   db.prepare("INSERT INTO article_snapshots VALUES(?,?,?)").run(id,version,JSON.stringify(snapshot));return version;
 }

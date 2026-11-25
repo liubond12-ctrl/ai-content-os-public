@@ -14,6 +14,8 @@ import {autopilotHopState,hopHandoff,linkAutopilotTask,reserveAutopilotHop} from
 import type {CruiseMaterial} from "../types/autopilot";
 import {brickPin} from "../types/calibration";
 import {freezeBricks} from "./atomic-bricks";
+import {matrixMatches} from "./matrix";
+import {chapterPlan} from "../types/sprint5";
 
 const line=z.string().trim().max(4000);
 export const entitySchema=z.object({
@@ -32,7 +34,9 @@ export const draftSchema=z.object({
   budgetProfile:z.enum(["protected","local_extended","cloud_review"]).default("protected"),
   kind:contentKind,requirements:line.default(""),outline:line.default(""),audience:line.default(""),
   sources:z.array(z.string()).default([]),assets:z.array(z.uuid()).default([]),imagesRequired:z.boolean().default(false),
-  brief:singleBrief.optional(),bricks:z.array(brickPin).max(8).optional(),
+  brief:singleBrief.optional(),bricks:z.array(brickPin).max(8).optional(),experiment:z.string().trim().max(240).optional(),
+  chapters:z.array(chapterPlan).min(2).max(6).refine(rows=>new Set(rows.map(row=>row.id)).size===rows.length&&new Set(rows.map(row=>row.heading)).size===rows.length,"章节标题和标识必须唯一").optional(),
+  plannedDay:z.iso.date().optional(),
 });
 export type ProductionDraft=z.infer<typeof draftSchema>;
 type Snapshot=z.infer<typeof ruleSnapshot>;
@@ -46,7 +50,8 @@ function snapshots(all:Entity[],draft:Omit<ProductionDraft,"goal">&{goal:string}
       hard.set(r.constraintKey,r.constraintValue);
     }
   }
-  return rules.map(r=>({id:r.id,version:r.version,name:r.name,body:r.body,hard:r.hard,hash:createHash("sha256").update(r.body).digest("hex"),reason:[r.account?"账号":"通用",r.platform,r.goal,r.type].filter(Boolean).join(" / ")})) satisfies Snapshot[];
+  return rules.map(r=>({id:r.id,version:r.version,name:r.name,body:r.body,hard:r.hard,hash:createHash("sha256").update(r.body).digest("hex"),reason:[r.account?"账号":"通用",r.platform,r.goal,r.type].filter(Boolean).join(" / "),
+    ...(r.constraintKey?{constraint:{key:r.constraintKey,value:r.constraintValue}}:{})})) satisfies Snapshot[];
 }
 export function previewDraft(draft:ProductionDraft){
   const db=productionDb();
@@ -98,10 +103,13 @@ export function previewDraft(draft:ProductionDraft){
     if(problems.some(Boolean))throw Error(problems.filter(Boolean).join("；"));
     const scoped={...draft,goal:resolved?.goal||draft.goal};
     if(cloudEnabled()&&draft.bricks?.length)throw Error("素材积木仅可提交给本机模型，请先移除积木");
+    if(draft.chapters&&(cloudEnabled()||draft.kind!=="自由文章"&&draft.kind!=="图文"||draft.budgetProfile!=="local_extended"))throw Error("分章生成使用本机长文额度，支持图文或自由文章");
     const bricks=freezeBricks(db,draft.account,draft.bricks??[]);
-    return {brand:"default" as const,account:account?.id??"",accountName:account?.name??"未归属",accountDescription:account?.body??"",platform:draft.platform,kind:draft.kind,
+    return {brand:"default" as const,account:account?.id??"",accountVersion:account?.version??0,accountName:account?.name??"未归属",accountDescription:account?.body??"",platform:draft.platform,kind:draft.kind,
       requirements:draft.requirements,outline:draft.outline,imagesRequired:resolved?.imagesRequired??draft.imagesRequired,attachments,
       ...(bricks.length?{bricks}:{}),
+      ...(draft.chapters?{chapters:draft.chapters}:{}),
+      ...(draft.plannedDay?{plannedDay:draft.plannedDay}:{}),
       ...(draft.brief?{authorBrief:draft.brief.note,writingPreference:account?.writingPreference||"",resolved,illustrations,reused}:{}),
       rules:snapshots(entities(db,"rule"),scoped,account),standards:snapshots(entities(db,"standard"),scoped,undefined),budget:productionBudget(draft.kind,cloudEnabled()?"cloud_review":draft.budgetProfile)};
   }finally{db.close();}
@@ -222,6 +230,10 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
   try{
     db.exec("BEGIN IMMEDIATE");
     if(db.prepare("SELECT id FROM production_batches WHERE id=?").get(input.id))return input.id;
+    for(const draft of input.drafts){
+      const matches=matrixMatches(db,draft,input.drafts);
+      if(matches.length&&!draft.experiment)throw Error("可能撞车："+matches.slice(0,3).map(item=>item.title+"（"+item.state+"）").join("、")+"。请返回预检查看来源或登记同题实验。");
+    }
     if(single&&!db.prepare("SELECT 1 FROM production_workers WHERE seen>? LIMIT 1").get(Date.now()-workerHeartbeatWindowMs))throw Error("生成后台离线。草稿已保存，恢复后台后请重新检查状态。");
     if(new Set(input.drafts.map(d=>d.id)).size!==input.drafts.length)throw Error("清单中有重复草稿");
     db.prepare("INSERT INTO production_batches VALUES(?,?,1,0,?,?,?)").run(input.id,new Date().toISOString(),input.tokenLimit,input.requestLimit,mode);
@@ -234,7 +246,7 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
       const p=previews[i];
       const material=input.autopilot?.materials.get(d.id);
       if(input.autopilot&&!material)throw Error("缺少巡航原始资料");
-      const task:Task={id,revision:0,stage:"assemble",records:[],input:brief.parse({persona:"general",topic:d.topic,audience:p.resolved?.audience??d.audience,format:d.kind==="口播稿"?"口播稿":d.kind==="分镜脚本"?"短视频脚本":"图文文章",goal:p.resolved?.goal??d.goal,style:p.resolved?.style?.slice(0,600),mode:"keyword",generate:true,sources:d.sources.length?d.sources:undefined,production:{...p,mode,...(material?{draftId:d.id,sourceMaterials:[material]}:{})}})};
+      const task:Task={id,revision:0,stage:"assemble",records:[],input:brief.parse({persona:"general",topic:d.topic,audience:p.resolved?.audience??d.audience,format:d.kind==="口播稿"?"口播稿":d.kind==="分镜脚本"?"短视频脚本":"图文文章",goal:p.resolved?.goal??d.goal,style:p.resolved?.style?.slice(0,600),mode:"keyword",generate:true,sources:d.sources.length?d.sources:undefined,production:{...p,mode,experiment:d.experiment,...(material?{draftId:d.id,sourceMaterials:[material]}:{})}})};
       if(input.autopilot)linkAutopilotTask(db,id,input.autopilot.parent);
       if(cloudEnabled())db.prepare("INSERT INTO production_cloud_grants VALUES(?,?,?,?)").run(id,inputHash(task.input),process.env.STUDIO_MODEL!,new Date().toISOString());
       db.prepare("INSERT INTO versions VALUES(?,?,?)").run(id,0,JSON.stringify(task));

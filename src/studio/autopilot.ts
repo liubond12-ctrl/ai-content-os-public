@@ -236,7 +236,7 @@ export function decideMorning(db:DatabaseSync,day:string,candidate:MorningCandid
     const plan=plans.find(plan=>plan.draft.id===original?.draft);
     if(!plan)throw Error("找不到原巡航计划。");
     db.prepare("INSERT INTO cruise_reruns VALUES(?,?,?,?,?)").run(candidate.taskId,day,randomUUID(),
-      JSON.stringify({...plan,draft:{...plan.draft,id:randomUUID(),version:0}}),"pending");
+      JSON.stringify({...plan,draft:{...plan.draft,id:randomUUID(),version:0,experiment:"作者已打回重跑"}}),"pending");
   }
   db.prepare("INSERT INTO cruise_decisions VALUES(?,?,?,?)").run(candidate.taskId,candidate.articleVersion,decision,new Date().toISOString());
   return decision==="approve"?"已通过，可在工作台分发此版。":"已登记重跑，等待投入生产队列。";

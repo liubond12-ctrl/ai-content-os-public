@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import type {AssemblyTrace} from "../types/sprint5";
+import type {z} from "zod";
+import type {productionInput} from "../studio/production-schema";
 
 import {
   materializeDefinition,
@@ -17,6 +20,35 @@ import type {
 
 function recordKey(root: "source" | "system", relativePath: string) {
   return `${root}:${relativePath}`;
+}
+
+export function assembleProduction(base:string,production:z.infer<typeof productionInput>,pins:readonly string[]=[]){
+  const hash=(text:string)=>createHash("sha256").update(text).digest("hex");
+  const seen=new Map<string,string>(),modules:AssemblyTrace["modules"]=[],conflicts:AssemblyTrace["conflicts"]=[];
+  const constraints=new Map<string,{value:string;source:string;hard:boolean}[]>();
+  const pick=(kind:string,rules:typeof production.rules)=>rules.filter(rule=>{
+    const source=kind+"/"+rule.id+"@"+rule.version;
+    if(rule.constraint){
+      const values=constraints.get(rule.constraint.key)??[];
+      values.push({value:rule.constraint.value,source,hard:rule.hard});constraints.set(rule.constraint.key,values);
+    }
+    const fingerprint=hash(JSON.stringify([rule.body,rule.hard,rule.constraint])),duplicateOf=seen.get(kind+fingerprint);
+    modules.push({source,hash:fingerprint,...(duplicateOf?{duplicateOf}:{})});
+    if(duplicateOf)return false;
+    seen.set(kind+fingerprint,source);return true;
+  });
+  const accountSource="account/"+production.account+"@"+(production.accountVersion??0);
+  modules.push({source:accountSource,hash:hash(JSON.stringify([production.accountName,production.accountDescription,production.writingPreference]))});
+  const rules=pick("rule",production.rules),standards=pick("standard",production.standards);
+  for(const [key,items] of constraints){
+    if(new Set(items.map(item=>item.value)).size>1)conflicts.push({key,sources:items.map(item=>item.source),
+      resolution:items.filter(item=>item.hard).length===1?"硬约束优先，保留其余来源供核对":"要求不一致，交由操作者确认"});
+  }
+  for(const a of production.attachments)modules.push({source:"attachment/"+a.id,hash:hash(a.text)});
+  const compiledContext=base+"\n本次固定写作规范与质量标准（业务标准为空时仅基础检查）\n"+
+    JSON.stringify({rules,standards,...(conflicts.length?{conflicts}:{})});
+  const trace:AssemblyTrace={account:production.account,accountVersion:production.accountVersion??0,hash:hash(compiledContext),modules,conflicts,references:[...new Set(pins)]};
+  return {compiledContext,trace};
 }
 
 function publicPath(record: ResourceRecord) {

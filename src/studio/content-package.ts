@@ -1,7 +1,8 @@
 import {productionDb,event} from "./production-db";
-import {readArticles} from "./article-store";
+import {readArticles,articleStateInTransaction} from "./article-store";
 import {lookup} from "./tasks";
 import {validateBody} from "./production-schema";
+import {storyboardCards} from "./storyboard";
 
 // ZIP store entries with UTF-8 names. No compression or third-party runtime.
 function crc(data:Buffer){
@@ -26,19 +27,20 @@ export function imageState(id:string){
   try{
     const images=db.prepare("SELECT i.*,a.name,a.mime FROM production_images i JOIN production_assets a ON a.id=i.asset WHERE task=? ORDER BY page,version DESC").all(id);
     const illustrations=db.prepare("SELECT a.id,a.name FROM production_assets a JOIN production_material_owners o ON o.asset=a.id WHERE o.draft=? AND a.mime LIKE 'image/%' ORDER BY a.created,a.id").all(id).map(a=>({id:String(a.id),name:String(a.name)}));
-    return {task:task?.input.production,article,images,illustrations};
+    const platform=task?.input.production?.platform||"小红书";
+    return {task:task?.input.production,article,images,illustrations,cards:storyboardCards(id,article.version,article.title,article.body,platform)};
   }finally{db.close();}
 }
-export function bindImage(task:string,page:number,article:number,asset:string,confirmed:boolean){
-  const latest=readArticles(task).head;
+export function bindImage(task:string,page:number,article:number,asset:string,confirmed:boolean,expected?:number){
+  readArticles(task);
   const db=productionDb();
   try{
     db.exec("BEGIN IMMEDIATE");
     const row=db.prepare("SELECT a.mime FROM production_assets a LEFT JOIN production_material_owners o ON o.asset=a.id WHERE a.id=? AND a.brand='default' AND a.allowed=1 AND (o.asset IS NULL OR o.draft=?)").get(asset,task);
     if(!row||!String(row.mime).startsWith("image/")||!Number.isInteger(page)||page<1||page>100)throw Error("请选图片和有效页序");
-    const current=Number(db.prepare("SELECT max(version) AS v FROM article_snapshots WHERE task_id=?").get(task)?.v??latest.version);
-    if(latest.version!==article||current!==article)throw Error("文字版本已变化，请重新确认配图");
+    if(articleStateInTransaction(db,task).head.version!==article)throw Error("文字版本已变化，请重新确认配图");
     const version=Number(db.prepare("SELECT max(version) AS v FROM production_images WHERE task=? AND page=?").get(task,page)?.v??0)+1;
+    if(expected!==undefined&&expected!==version-1)throw Error("图位已更新，请重新载入");
     db.prepare("INSERT INTO production_images VALUES(?,?,?,?,?,?,?)").run(crypto.randomUUID(),task,page,version,article,asset,confirmed?1:0);
     event(db,task,article,"配图"+page+"版本"+version,confirmed?"人工确认":"待确认");
     db.exec("COMMIT");
@@ -47,7 +49,7 @@ export function bindImage(task:string,page:number,article:number,asset:string,co
 export function exportPackage(id:string){
   const {task,article,images}=imageState(id);
   if(!article.confirmed)throw Error("请先确认文字定稿");
-  const latest=[...new Map([...images].reverse().map(i=>[Number(i.page),i])).values()];
+  const latest=[...new Map([...images].reverse().map(i=>[Number(i.page),i])).values()].sort((a,b)=>Number(a.page)-Number(b.page));
   if(latest.some(i=>!i.confirmed||i.article!==article.version)||task?.imagesRequired&&!latest.length)throw Error("配图待补或文字变更后图片需重新确认");
   const sections=task?validateBody(task.kind,article.body):[{name:"正文",text:article.body}];
   const files=[{name:"正文.md",data:Buffer.from(article.body)}];

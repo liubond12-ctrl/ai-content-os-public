@@ -4,6 +4,10 @@ export function fixtureResponse(instruction,data){
  const source=request?.production?.sourceMaterials?.[0];
  const input=source?{...request,topic:source.title}:request;
  const assessment={label:"普通",disputed:false,dimensions:{内容策略:"离线结构检查",表达质量:"明确虚构",内容结构:"按栏目组织",基础规范:"业务标准未配置"},issues:[],claims:[]};
+ if(instruction.startsWith("分章长文 v1"))return {paragraphs:[
+  {text:"虚构写法练习。"+data.chapter.heading+"先给一个可见动作。"+(data.authorRevision?"按编辑要求改为观察纸边的变化。":""),sources:data.sources.slice(0,1).map(row=>row.sourceId)},
+  {text:"将动作与下一步安排连起来，再核对读者能看到哪些证据。",sources:[]}
+ ]};
  if(instruction.startsWith("渠道派生 v1")){
   const {variant}=data;
   const common={variant,keywords:["写作练习","动作描写","校样"],cta:"在评论区写下你想精修的一句。"};
@@ -18,6 +22,7 @@ export function fixtureResponse(instruction,data){
   if(variant==="douyin-post")return {...common,title:"蓝笔校样改写",slides:["第 1 页 · 从一句判断开始","第 2 页 · 她把蓝笔横放在校样旁。","第 3 页 · 标出你读到的动作。绝对有效是用于预检的虚构样例词。"]};
   if(variant==="wechat")return {...common,title:"从一张校样说起：写作练习的三个观察点",
    blocks:[{kind:"paragraph",text:"动作描写可以从手边的纸、笔和停顿开始。蓝笔落桌，是这次虚构校样的一个节点。"},
+    ...(String(data.title).includes("纸角叙述对照")?[{kind:"paragraph",text:"纸角校样是指一段用纸张动作演练写法的虚构示例。问：先观察什么？答：先观察动作，再记录变化。"}]:[]),
     {kind:"quote",text:"蓝笔落在了桌上。"},
     {kind:"highlight",text:"先让读者看到动作，再决定要不要解释感受。"},
     {kind:"step",text:"第一步，圈出抽象判断。第二步，挑一个可见动作。第三步，读一遍改前改后。"},

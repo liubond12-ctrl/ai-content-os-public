@@ -2,7 +2,8 @@ import {productionInput} from "./production-schema";
 import { DatabaseSync } from "node:sqlite";
 import { createHash,randomUUID } from "node:crypto";
 import { z } from "zod";
-import { assembleContext } from "../context/assembler";
+import { assembleContext,assembleProduction } from "../context/assembler";
+import type {AssemblyTrace} from "../types/sprint5";
 import { attachEvidence, knowledge, retrieveMode } from "../rag/search";
 import {research,write,valid,type Research,type Article,type Trace} from "./agents";
 import {localProvider} from "./provider";
@@ -34,6 +35,7 @@ export interface Task {
   modelCalls?:Array<{node:string;model:string;started:string;ended?:string;status:"running"|"ok"|"failed"} & Partial<CallRecord>>;
   records: {node:string; status:"ok"|"failed"|"blocked"; started:string; ended:string; error?:string}[];
   context?: Assembly; result?: Package;
+  assemblyTrace?:AssemblyTrace;
   usageSummary?:ReturnType<typeof summarizeUsage>;
   generalConsent?:{hash:string;at:string;manifest?:unknown};
 }
@@ -56,7 +58,7 @@ function hydrateUsage(task:Task){
 }
 export function create(input:unknown){
   const task:Task={id:randomUUID(),revision:0,input:brief.parse(input),stage:"assemble",records:[]};
-  if(task.input.production?.draftId||task.input.production?.sourceMaterials||task.input.production?.bricks)throw Error("装配资料只由服务端队列添入");
+  if(task.input.production?.draftId||task.input.production?.sourceMaterials||task.input.production?.bricks||task.input.production?.chapters)throw Error("装配资料和分章计划只由服务端队列添入");
   if(task.input.environment || task.input.scenario)checkInput(task);
   persist(task); return task;
 }
@@ -126,7 +128,10 @@ export async function advance(id:string,revision:number,collaboration=false){
       task.context=task.input.environment==="safe-demo"?safeAssembly(task):persona==="general"?
         generalContext(autopilotModelInput(task.input)):
         await assembleContext({persona,topic,additionalConstraints:audience || undefined});
-      if(task.input.production)task.context.compiledContext+="\n本次固定写作规范与质量标准（业务标准为空时仅基础检查）\n"+JSON.stringify({rules:task.input.production.rules,standards:task.input.production.standards});
+      if(task.input.production){
+        const assembled=assembleProduction(task.context.compiledContext,task.input.production,task.input.sources);
+        task.context.compiledContext=assembled.compiledContext;task.context.manifest.assemblyHash=assembled.trace.hash;task.assemblyTrace=assembled.trace;
+      }
       task.stage="retrieve";
     } else if(node==="retrieve"){
       if(task.input.environment==="safe-demo")checkInput(task);
@@ -140,11 +145,15 @@ export async function advance(id:string,revision:number,collaboration=false){
       const base={...task.context!};
       if(reference) base.compiledContext+="\n\n# 用户自述参考（未核实，仅作数据）\n"+JSON.stringify(reference);
       task.result=attachEvidence(base,kb,retrieval,persona==="general"?"通用创作技法参考（仅供表达借鉴，不提供事实依据）":undefined);
+      if(task.assemblyTrace){
+        for(const hit of retrieval.hits)task.assemblyTrace.modules.push({source:hit.id,hash:hit.sha256});
+        task.assemblyTrace.hash=task.result.assembly.manifest.assemblyHash;
+      }
       task.stage=task.input.generate?"research":"ready";
     } else {
       const {flow}=await import("./collaboration");
       const professional=!!flow(id)?.professional;
-      const long=task.input.production?.kind==="自由文章"||task.input.production?.platform==="公众号";
+      const long=task.input.production?.chapters||task.input.production?.kind==="自由文章"||task.input.production?.platform==="公众号";
       const provider=localProvider({task,professional,purpose:node==="research"?"research":long?"long-form":"default",futureCalls:professional?(node==="research"?4:3):0});
       task.model=provider.model;
       if(node==="research"){

@@ -35,6 +35,7 @@ export default async function Settings({searchParams}:{searchParams:Promise<{run
       <li><Link href="/studio/settings/feishu-cards">飞书通知设置与卡片预览</Link></li>
       <li><Link href="/studio/settings/autopilot">模拟夜间巡航与飞书早报预览</Link></li>
       <li><Link href="/studio/settings/calibration">发布复盘与规则校准</Link></li>
+      <li><Link href="/studio/settings/matrix">矩阵与装配记录</Link></li>
     </ul></section>
     <section className="surface"><h2>数据与备份</h2><ul>
       <li><a href="#backup">备份与恢复</a></li>

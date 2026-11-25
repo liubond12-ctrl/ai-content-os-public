@@ -1,0 +1,8 @@
+.storyboard-workspace{margin:16px 0}
+.story-controls{display:flex;flex-wrap:wrap;align-items:end;gap:8px 12px}
+.story-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:16px}
+.story-preview{display:grid;place-items:center;border:1px dashed var(--line);border-radius:10px;width:100%;max-width:420px;max-height:520px;overflow:hidden}
+.story-preview img{width:100%;height:100%;object-fit:contain}
+.story-preview svg{width:82%;max-height:88%;opacity:.66}
+.story-grid textarea{width:100%}
+@media(max-width:620px){.story-grid{grid-template-columns:1fr}}

@@ -7,13 +7,15 @@ import {useEffect,useRef,useState} from "react";
 import {Plate,PlateContent,PlateElement,PlateLeaf,ParagraphPlugin,createPlatePlugin,usePlateEditor,type PlateElementProps,type PlateLeafProps} from "platejs/react";
 import {H1Plugin,H2Plugin,BoldPlugin} from "@platejs/basic-nodes/react";
 import {validateBody,renderSections} from "../studio/production-schema";
-import {bodySection,fromText,mapReviewAnchor,plainText,quoteRange,textDiff,type ArticleDocument} from "../studio/article-document";
+import {bodySection,fromText,stabilizeBlocks,mapReviewAnchor,plainText,quoteRange,textDiff,type ArticleDocument} from "../studio/article-document";
 import type {ArticleState} from "../studio/article-store";
 import type {Review} from "@/studio/eval";
 import {endingEditId,type LocalArticleEdit,type ReviewAnchor} from "@/types/multi-agent-review";
 import {ArticleReview} from "./ArticleReview";
 import {ChannelDistribution} from "./ChannelDistribution";
 import {PredictionLink} from "./CalibrationWorkspace";
+import {Storyboard} from "./Storyboard";
+import {TaskAssembly} from "./MatrixWorkspace";
 import "./article-editor.css";
 
 
@@ -29,7 +31,8 @@ const plugins=[ParagraphPlugin.withComponent(Paragraph),H1Plugin.withComponent(H
   createPlatePlugin({key:"blockquote",node:{isElement:true,component:Quote}}),BoldPlugin.withComponent(Bold),createPlatePlugin({key:"li",node:{isElement:true,component:ListItem}})];
 function clean(value:unknown):ArticleDocument{
   // Plate assigns node ids; these are UI identities, not part of stored v1.
-  return (value as ArticleDocument).map(b=>({type:b.type,children:b.children.map(l=>({text:l.text,...(l.bold?{bold:true}:{})}))}));
+  return (value as ArticleDocument).map(b=>({type:b.type,...(b.blockId?{blockId:b.blockId}:{}),...(b.sectionId?{sectionId:b.sectionId}:{}),
+    children:b.children.map(l=>({text:l.text,...(l.bold?{bold:true}:{})}))}));
 }
 async function request(body:object){
   const r=await fetch("/api/articles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
@@ -160,6 +163,22 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
       current.current={title:d.title,document:d.document};saved.current=JSON.stringify(current.current);setSavedSerial(saved.current);
       setSelected(next.head.version);setEditorKey(k=>k+1);stopped.current=false;setStatus("已保存正式版本 v"+next.head.version);setLocating(null);
     }catch(e){setError(String(e));setStatus("保存失败，输入仍保留");stopped.current=true;}
+    finally{flight.current=false;setBusy(false);}
+  }
+  async function rewriteChapter(section:string){
+    if(flight.current||JSON.stringify(current.current)!==saved.current)return;
+    const feedback=window.prompt("写下只适用于这一章的改写要求。");
+    if(!feedback?.trim())return;
+    flight.current=true;setBusy(true);setError("");
+    try{
+      const s=stateRef.current,response=await fetch("/api/chapters",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({taskId,version:s.head.version,revision:s.draft?.revision??0,section,feedback})});
+      const result=await response.json();if(!response.ok)throw Error(result.error);
+      const next:ArticleState=result,draft=next.draft!;
+      install(next);current.current={title:draft.title,document:draft.document};saved.current=JSON.stringify(current.current);
+      setSavedSerial(saved.current);setTitle(draft.title);setDocument(draft.document);setEditorKey(key=>key+1);
+      setStatus("已保存本章改写");setLocating(null);
+    }catch(error){setError(String(error));}
     finally{flight.current=false;setBusy(false);}
   }
   function liveOffset(anchor:ReviewAnchor,snapshot:{title:string;document:ArticleDocument}){
@@ -319,6 +338,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
             <button type="button" onClick={()=>navigator.clipboard.writeText(version.body).then(()=>setNotice("正文已复制"),()=>setNotice("复制失败，请使用 Markdown 导出"))}>复制正文</button>
             <button type="button" onClick={()=>download(JSON.stringify(current.current,null,2),"article-draft.json","application/json")}>备份当前草稿</button>
             <Link href={"/production/package?"+new URLSearchParams({id:taskId,...(returnTo?{returnTo}:{})})}>打开配图与内容包 →</Link>
+            <details><summary>视觉分镜与图片回填</summary><Storyboard task={taskId} version={version.version}/></details>
           </section>
           <section className="article-history-tools">
             <h3>修改历史</h3>
@@ -332,11 +352,17 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
         </div>
         <div className="article-tools-extra">
           <PredictionLink key={version.version} task={taskId} version={version.version}/>
+          <TaskAssembly task={taskId}/>
           <details><summary>发布记录与修改经验</summary>
             <ArticleReuse key={version.version} version={version} versions={state.versions} embedded/>
           </details>
           <details><summary>更多编辑工具</summary>
-          {state.kind&&<details><summary>按栏目编辑或导出</summary>{sections.length?sections.map((s,i)=><div key={s.name}><label>{s.name}<textarea disabled={busy||selected!==state.head.version} value={s.text} onChange={e=>{
+          {(selected===state.head.version?state.draft?.chapters??version.chapters:version.chapters)?.map(chapter=><details key={chapter.id}>
+            <summary>{chapter.heading} · 分章来源</summary>
+            <ul>{chapter.paragraphs.map((p,index)=><li key={index}>{p.text}<small> · {p.sources.join("、")||"无引用"}</small></li>)}</ul>
+            {selected===state.head.version&&<button type="button" disabled={busy||unsaved} onClick={()=>void rewriteChapter(chapter.id)}>改写此章</button>}
+          </details>)}
+          {state.kind&&!version.chapters&&<details><summary>按栏目编辑或导出</summary>{sections.length?sections.map((s,i)=><div key={s.name}><label>{s.name}<textarea disabled={busy||selected!==state.head.version} value={s.text} onChange={e=>{
             const next=sections.map((item,n)=>n===i?{...item,text:e.target.value}:item);
             setDocument(fromText(renderSections(state.kind!,next)));setEditorKey(k=>k+1);
           }}/></label><button type="button" onClick={()=>download(s.text,s.name+"-v"+version.version+".txt","text/plain;charset=utf-8")}>导出{s.name}</button></div>):<p>栏目标题已改变，请在正文恢复必要栏目后保存。</p>}</details>}
@@ -373,7 +399,7 @@ function BodyEditor({initial,disabled,onChange,locate}:{initial:ArticleDocument;
     });
     return()=>cancelAnimationFrame(frame);
   },[editor,locate]);
-  return <Plate editor={editor} onValueChange={({value})=>onChange(clean(value))}>
+  return <Plate editor={editor} onValueChange={({value})=>onChange(stabilizeBlocks(clean(value),initial))}>
     <div className="article-toolbar" role="toolbar" aria-label="正文格式">
       {([['p','段落'],['h1','一级标题'],['h2','二级标题'],['li','列表'],['blockquote','引用']] as const).map(([type,label])=><button key={type} disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>{editor.tf.setNodes({type},{match:n=>editor.api.isBlock(n)});editor.tf.focus();}}>{label}</button>)}
       <button disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>{editor.tf.toggleMark("bold");editor.tf.focus();}}>加粗</button>

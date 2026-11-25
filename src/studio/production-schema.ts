@@ -1,6 +1,7 @@
 import {z} from "zod";
 import {cruiseMaterial} from "../types/autopilot";
 import {atomicBrick} from "../types/calibration";
+import {chapterPlan} from "../types/sprint5";
 
 export const productionPlatforms = ["小红书","抖音","公众号"] as const;
 export const productionPlatform = z.enum(["",...productionPlatforms]);
@@ -9,6 +10,7 @@ export const contentKind=z.enum(["图文","口播稿","分镜脚本","自由文�
 export const ruleSnapshot=z.object({
   id:z.string(),version:z.number().int(),name:z.string(),body:z.string(),hash:z.string(),
   hard:z.boolean(),reason:z.string(),
+  constraint:z.object({key:z.string(),value:z.string()}).optional(),
 });
 export const productionBudgetSchema=z.object({
   profile:z.enum(["protected","local_extended","cloud_review"]),requests:z.number().int().positive(),tokens:z.number().int().positive(),
@@ -22,6 +24,10 @@ export function productionBudget(kind:z.infer<typeof contentKind>,profile="prote
 }
 export const productionInput=z.object({
   draftId:z.uuid().optional(),
+  experiment:z.string().trim().max(240).optional(),
+  accountVersion:z.number().int().nonnegative().optional(),
+  plannedDay:z.iso.date().optional(),
+  chapters:z.array(chapterPlan).min(2).max(6).optional(),
   sourceMaterials:z.array(cruiseMaterial).max(4).readonly().optional(),
   bricks:z.array(atomicBrick).max(8).readonly().optional(),
   brand:z.literal("default"),account:z.string(),accountName:z.string(),accountDescription:z.string(),platform:productionPlatform,

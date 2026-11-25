@@ -10,6 +10,8 @@ import type {ProductionView,ProductionDraft,Entity} from "@/studio/production";
 import {productionBudget,productionPlatforms} from "@/studio/production-schema";
 import {taskGuidance} from "@/studio/task-guidance";
 import {SingleBriefInput,emptyBrief} from "./SingleBriefInput";
+import {Storyboard} from "./Storyboard";
+import type {MatrixMatch} from "@/types/sprint5";
 import {resolveBrief,type SingleBrief} from "@/studio/single-brief";
 import type {imageState} from "@/studio/content-package";
 
@@ -238,6 +240,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
     }
   },[batchMode,selected]);
   useEffect(()=>{if(dirty)localStorage.setItem(key,JSON.stringify(form));const warn=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue="";}};window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn);},[form,dirty,key]);
+  const [matches,setMatches]=useState<MatrixMatch[][]>([]);
   function change(next:Partial<ProductionDraft>){setForm(p=>({...p,...next}));setDirty(true);setPreview(null);setAuthorizeText(false);}
   function updateBrief(fn:(p:SingleBrief)=>SingleBrief){
     setForm(p=>p.id===form.id&&p.account===form.account?{...p,brief:fn(p.brief??emptyBrief)}:p);
@@ -288,6 +291,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
       setChecking(true);
       try{
         const checked=await api({action:"preview",drafts:[{...form,brief:form.brief??emptyBrief}]});
+        setMatches(await api({action:"matrix",drafts:[form]}));
         const saved=dirty||!form.version||!form.brief?await persist():form;
         setShowAdjust(true);
         setPreview(checked);setPreviewKey(signature([saved]));
@@ -335,11 +339,26 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
         {!free&&<><AccountPicker accounts={data.accounts} value={form.account} onChoose={chooseAccount}/>
         <label>平台<select required value={form.platform} onChange={e=>change({platform:e.target.value as ProductionDraft["platform"]})}><option value="">请选择</option>{productionPlatforms.map(platform=><option key={platform}>{platform}</option>)}</select></label></>}
         <label className="draft-topic">选题<input required maxLength={240} value={form.topic} onChange={e=>change({topic:e.target.value})}/></label>
-      <label>内容类型<select value={form.kind} onChange={e=>change({kind:e.target.value as ProductionDraft["kind"]})}>{(free?["自由文章"]:kinds.filter(k=>k!=="自由文章")).map(k=><option key={k}>{k}</option>)}</select></label>
+      <label>内容类型<select value={form.kind} onChange={e=>{
+        const kind=e.target.value as ProductionDraft["kind"];
+        change({kind,...(form.chapters&&kind!=="图文"&&kind!=="自由文章"?{chapters:undefined,budgetProfile:"protected" as const}:{})});
+      }}>{(free?["自由文章"]:kinds.filter(k=>k!=="自由文章")).map(k=><option key={k}>{k}</option>)}</select></label>
       </div>
       {data.draftOrigin&&<p className="single-origin"><a href={data.draftOrigin.original} target="_blank" rel="noreferrer">{data.draftOrigin.source} · {data.draftOrigin.title}</a></p>}
+      {data.mode!=="真实云端"&&(form.kind==="自由文章"||form.kind==="图文")&&<details><summary>分章长文</summary>
+        <p>按大纲逐章检索与生成，使用本机长文额度。</p>
+        {form.chapters?<>{form.chapters.map((chapter,index)=><label key={chapter.id}>第 {index+1} 章
+          <input required value={chapter.heading} maxLength={120} onChange={e=>change({chapters:form.chapters?.map(item=>item.id===chapter.id?{...item,heading:e.target.value}:item)})}/></label>)}
+          <button type="button" disabled={form.chapters.length>=6} onClick={()=>change({chapters:[...form.chapters!,{id:crypto.randomUUID(),heading:"新章节"}]})}>添加章节</button>
+          <button type="button" disabled={form.chapters.length<=2} onClick={()=>change({chapters:form.chapters?.slice(0,-1)})}>移除末章</button>
+          <button type="button" onClick={()=>change({chapters:undefined,budgetProfile:"protected"})}>关闭分章</button>
+        </>:<button type="button" onClick={()=>change({budgetProfile:"local_extended",chapters:["问题与范围","证据与方法","行动与限制"].map(heading=>({id:crypto.randomUUID(),heading}))})}>按三章生成</button>}
+      </details>}
       {form.intent==="draft"&&<SingleBriefInput key={form.id+":"+form.account} draft={form} data={data} update={updateBrief} updateSources={sources=>change({sources})} updateBricks={bricks=>change({bricks})} loading={setUploading} disabled={busy||uploading||!connected} checking={checking}/>}
       {form.intent==="queued"&&<p>此稿在<Link href="/production/create?mode=batch#batch">待生产清单</Link>中，可在批量页提交或移出。</p>}
+      <details><summary>排期与同题实验</summary><label>预定发布日期<input type="date" value={form.plannedDay??""} onChange={e=>change({plannedDay:e.target.value||undefined})}/></label>
+        {!matches[0]?.length&&<label>同题实验目的<input maxLength={240} value={form.experiment??""} onChange={e=>change({experiment:e.target.value})}/></label>}</details>
+      {!!matches[0]?.length&&<label>同题实验目的<input maxLength={240} value={form.experiment??""} onChange={e=>change({experiment:e.target.value})}/></label>}
       {error&&<div id="chat-preflight-reply" className="chat-preflight-reply" role="alert" tabIndex={-1}><strong>发送前请补齐</strong><p>{error}</p></div>}
       {!checkedSingle&&state!=="ready"&&<ReadinessNotice id="single-worker" state={state} scope="single" refresh={refresh} basic={!data.standards.some(s=>s.status==="启用")}/>}
       {preview&&showAdjust&&!checkedSingle&&!error&&<p className="chat-adjust-notice">已更新，发送后重新核对。</p>}
@@ -365,7 +384,9 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
                 <ProductionCost mode={data.mode}/>
         <details><summary>诊断用完整快照</summary><pre>{JSON.stringify(preview,null,2)}</pre></details>
         <ReadinessNotice id="single-worker" state={state} scope="single" refresh={refresh} basic={!preview?.[0]?.standards.length}/>
-        <button className="primary" type="button" disabled={busy||!checkedSingle||!canRun||(requiresAuthorization&&!authorizeText)} aria-describedby="single-worker" onClick={()=>void submitSingle()}>确认并开始这篇内容</button>
+        {!!matches[0]?.length&&<section aria-label="矩阵防撞车"><h3>可能撞车</h3><MatrixHits hits={matches[0]}/>
+          <p>有意测试不同写法时，填写目的后重新预检。</p></section>}
+        <button className="primary" type="button" disabled={busy||!checkedSingle||!canRun||(requiresAuthorization&&!authorizeText)||!!matches[0]?.length&&!form.experiment?.trim()} aria-describedby="single-worker" onClick={()=>void submitSingle()}>确认并开始这篇内容</button>
       </section>}
       {form.intent!=="draft"?<DraftDetails draft={form} data={data} update={change} notify={notify}/>:
         !!(form.requirements||form.outline||form.assets.length)&&<details><summary>旧草稿的原有要求与材料</summary><DraftDetails draft={form} data={data} update={change} notify={notify}/></details>}
@@ -375,13 +396,17 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
     <section id="batch"><h2>待生产清单 · {pending.length} 条</h2>{listed.map(d=><article className="queued-draft" key={d.id}><label><input type="checkbox" checked={selected===null||selected.includes(d.id)} onChange={e=>setSelected(e.target.checked?[...(selected??listed.map(d=>d.id)),d.id]:(selected??listed.map(d=>d.id)).filter(id=>id!==d.id))}/>{d.topic||"未填写选题"} · {data.accounts.find(a=>a.id===d.account)?.name??"自由创作"} · {d.platform} · {d.kind}</label><div className="draft-order-actions"><button disabled={busy} onClick={()=>moveDraft(d.id,-1)}>上移</button><button disabled={busy} onClick={()=>moveDraft(d.id,1)}>下移</button><Link href={(d.kind==="自由文章"?"/production/free":"/production/create")+"?draft="+d.id}>修改此草稿</Link><button disabled={busy} onClick={()=>act(()=>api({action:"draft",value:{...d,intent:"draft"}}))}>移出清单</button></div><details><summary>要求、大纲与附件</summary><p>{d.requirements||"未补充"}</p><p>{d.outline||"自动组织"}</p><p>已选附件 {d.assets.length} 项</p></details></article>)}
       {!checkedBatch&&<ReadinessNotice id="batch-readiness" state={state} scope="batch" refresh={refresh} basic={preview?.some(item=>!item.standards.length)??!data.standards.some(s=>s.status==="启用")}/>}
       <details><summary>调用额度</summary><div className="filters"><label>批次 Tokens 上限<input type="number" min={1000} max={2000000} value={tokenLimit} onChange={e=>{setTokenLimit(Number(e.target.value));setPreview(null);}}/></label><label>请求次数上限<input type="number" min={1} max={600} value={requestLimit} onChange={e=>{setRequestLimit(Number(e.target.value));setPreview(null);}}/></label></div></details>
-      <button className={preview?"":"primary"} disabled={busy||!connected||!pending.length} aria-describedby="batch-readiness" onClick={()=>act(async()=>{setPreview(await api({action:"preview",drafts:pending}));setPreviewKey(signature(pending));})}>预检本批次资料与规范</button>
+      <button className={preview?"":"primary"} disabled={busy||!connected||!pending.length} aria-describedby="batch-readiness" onClick={()=>act(async()=>{setPreview(await api({action:"preview",drafts:pending}));setMatches(await api({action:"matrix",drafts:pending}));setPreviewKey(signature(pending));})}>预检本批次资料与规范</button>
       {checkedBatch&&<div id="batch-preview" tabIndex={-1}><h3>生产顺序</h3><p>{pending.length} 条 · {data.mode} · 最短约 {pending.length*4} 次请求；含研究、事实核验、讨论及两轮修订最多按 {pending.length*22} 次规划，实际按需执行。当前批次上限 {requestLimit} 次 / {tokenLimit} Tokens，失败与未知用量保守占额。{requestLimit<pending.length*22?"当前预算不保证覆盖完整分歧与修订，触顶转人工，不自动扩额。":""}</p><ProductionCost mode={data.mode}/><ol>{pending.map((d,i)=><li key={d.id}><strong>{d.topic}</strong> · {d.kind} · {data.accounts.find(a=>a.id===d.account)?.name||"自由创作"} · {d.platform||"不限平台"}<p>规范：{preview[i]?.rules.map(r=>r.name+" v"+r.version).join("、")||"未配置"}；质量标准：{preview[i]?.standards.map(r=>r.name+" v"+r.version).join("、")||"未配置，仅基础检查"}；参考 {d.sources.length} 条，附件 {d.assets.length} 项。</p></li>)}</ol><details><summary>诊断用完整快照</summary><pre>{JSON.stringify(preview,null,2)}</pre></details>
         <ReadinessNotice id="batch-readiness" state={state} scope="batch" refresh={refresh} basic={preview?.some(item=>!item.standards.length)}/>
-        <button className="primary" disabled={busy||!connected||!data.modelConfigured} aria-describedby="batch-readiness" onClick={()=>act(async()=>{const submitted=await api({action:"batch",id:batchId,drafts:pending,tokenLimit,requestLimit,preview});setPreview(null);setSelected(null);setBatchId(crypto.randomUUID());notify("已提交，后台继续执行。");router.push("/production/queue?batch="+encodeURIComponent(submitted.id));})}>确认并开始批量生产</button></div>}
+        {matches.map((hits,index)=>hits.length>0&&<div key={pending[index]?.id}><strong>{pending[index]?.topic} · 可能撞车</strong><MatrixHits hits={hits}/></div>)}
+        <button className="primary" disabled={busy||!connected||!data.modelConfigured||pending.some((draft,index)=>matches[index]?.length&&!draft.experiment)} aria-describedby="batch-readiness" onClick={()=>act(async()=>{const submitted=await api({action:"batch",id:batchId,drafts:pending,tokenLimit,requestLimit,preview});setPreview(null);setSelected(null);setBatchId(crypto.randomUUID());notify("已提交，后台继续执行。");router.push("/production/queue?batch="+encodeURIComponent(submitted.id));})}>确认并开始批量生产</button></div>}
       <Link href="/">回到首页查看进度</Link>
     </section></>}
   </>;
+}
+function MatrixHits({hits}:{hits:MatrixMatch[]}){
+  return <ul>{hits.map(hit=><li key={hit.id}><Link href={hit.href}>{hit.title}</Link> · {hit.account} · {hit.state} · {hit.signals.join("、")}</li>)}</ul>;
 }
 type Readiness="disconnected"|"offline"|"unconfigured"|"ready";
 function readiness(connected:boolean,online:boolean,modelConfigured:boolean):Readiness{
@@ -473,13 +498,15 @@ export function ContentPackage({id}:{id:string}){
   const prompt="为第 "+page+" 页设计配图。对应文字 v"+data.article.version+"，不要添加未经核实的数字或事实。\n"+data.article.body;
   return <main className="production"><Link href={editorHref(id,articleReturn(id,new URLSearchParams(location.search).get("returnTo")??undefined).source)}>返回文字编辑</Link><h1>{data.article.title} · 内容包</h1>
     <p>文字 v{data.article.version} · {data.article.confirmed?"已定稿":"待人工审核"} · {data.task?.imagesRequired?"需要配图":"允许仅文字交付"}</p>
-    <h2>手动配图</h2><label>页序<input type="number" min={1} max={100} value={page} onChange={e=>setPage(Number(e.target.value))}/></label>
+    <Storyboard task={id} data={data} onChange={()=>void load()}/>
+    <details><summary>从已上传图片归位与查看版本记录</summary><label>页序<input type="number" min={1} max={100} value={page} onChange={e=>setPage(Number(e.target.value))}/></label>
     <label>可复制的画面要求与提示词<textarea readOnly value={prompt}/></label>
     <button onClick={()=>navigator.clipboard.writeText(prompt).then(()=>setError("提示词已复制"),()=>setError("请在文本框中手动复制"))}>复制提示词</button>
     {data.illustrations?.map(image=><p key={image.id}><a href={"/api/production/assets?id="+image.id} target="_blank" rel="noreferrer">{image.name}</a> <button type="button" onClick={()=>{setAsset(image.id);setConfirmed(false);}}>选为本页配图</button></p>)}
     <AttachmentUpload onSaved={setAsset}/><p>所选图片 {asset||"尚未上传"}</p><label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>已核对图片与当前文字版本</label>
-    <button disabled={!asset||busy} onClick={async()=>{setBusy(true);try{await api({task:id,page,article:data.article.version,asset,confirmed},"/api/production/package");await load();setError("");}catch(e){setError(String(e));}finally{setBusy(false);}}}>保存图片归位版本</button>
+    <button disabled={!asset||busy} onClick={async()=>{setBusy(true);try{await api({task:id,page,article:data.article.version,asset,confirmed,
+      expected:Number(data.images.find(row=>Number(row.page)===page)?.version??0)},"/api/production/package");await load();setError("");}catch(e){setError(String(e));}finally{setBusy(false);}}}>保存图片归位版本</button>
     <h2>图片版本记录</h2>{data.images.map(i=><p key={String(i.id)}>第 {Number(i.page)} 页 · 图片 v{Number(i.version)} · 文字 v{Number(i.article)} · {Number(i.article)!==data.article.version?"文字已改，图片可能过期":i.confirmed?"人工已确认":"待确认"} · <a href={"/api/production/assets?id="+i.asset} target="_blank">查看图片</a><button onClick={()=>{setAsset(String(i.asset));setPage(Number(i.page));setConfirmed(false);}}>重新核对归位</button></p>)}
-    <p role="status">{error}</p><button disabled={busy} onClick={async()=>{setBusy(true);try{const r=await fetch("/api/production/package?id="+id+"&download=1");if(!r.ok)throw Error((await r.json()).error);const url=URL.createObjectURL(await r.blob()),a=document.createElement("a");a.href=url;a.download="内容包-v"+data.article.version+".zip";a.click();setError("");setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){setError(String(e));}finally{setBusy(false);}}}>确认整包并下载 ZIP</button>
+    </details><p role="status">{error}</p><button disabled={busy} onClick={async()=>{setBusy(true);try{const r=await fetch("/api/production/package?id="+id+"&download=1");if(!r.ok)throw Error((await r.json()).error);const url=URL.createObjectURL(await r.blob()),a=document.createElement("a");a.href=url;a.download="内容包-v"+data.article.version+".zip";a.click();setError("");setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){setError(String(e));}finally{setBusy(false);}}}>确认整包并下载 ZIP</button>
     <p>导出包含选定文字版本、各页最新且已确认的图片，以及版本清单。</p></main>;
 }
