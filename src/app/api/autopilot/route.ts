@@ -5,11 +5,14 @@ import {cardDb,mockAuthor,receive,type Card} from "@/studio/feishu-cards";
 import {ledgerRows,setLedgerSchedule} from "@/studio/feishu-ledger";
 import {productionView,saveEntity} from "@/studio/production";
 import {isLocalArticleWrite} from "@/studio/local-article-request";
+import {automationPolicy} from "@/types/readiness";
+import {budgetSnapshot,getAutomationPolicy,setAutomationPolicy} from "@/studio/readiness-budget";
 
 export const runtime="nodejs";
 const daySchema=z.iso.date();
 const action=z.discriminatedUnion("action",[
   z.object({action:z.literal("policy"),policy:cruisePolicy}).strict(),
+  z.object({action:z.literal("automation"),policy:automationPolicy}).strict(),
   z.object({action:z.literal("run")}).strict(),
   z.object({action:z.literal("decision"),card:z.uuid(),message:z.string().min(1).max(160),decision:z.enum(["approve","rerun"])}).strict(),
   z.object({action:z.literal("schedule"),taskId:z.uuid(),version:z.number().int().positive(),at:z.iso.datetime().nullable()}).strict(),
@@ -23,7 +26,9 @@ function snapshot(day:string){
     const policy=getCruisePolicy(db);
     const morningView=morning(db,day);
     const reruns=db.prepare("SELECT task,batch,status FROM cruise_reruns WHERE day=?").all(day);
-    return {day,demo:demo(),policy,...morningView,cards,ledger:ledgerRows(db),reruns};
+    const automation=getAutomationPolicy(db);
+    const screens=db.prepare("SELECT title,score FROM cruise_match_scores WHERE day=? ORDER BY rowid").all(day);
+    return {day,demo:demo(),policy,automation,budget:budgetSnapshot(db,day),screens,...morningView,cards,ledger:ledgerRows(db),reruns};
   }finally{db.close();}
 }
 export async function GET(request:Request){
@@ -38,6 +43,7 @@ export async function POST(request:Request){
   const input=parsed.data;
   try{
     if(input.action==="policy")saveCruisePolicy(input.policy);
+    if(input.action==="automation")setAutomationPolicy(input.policy);
     if(input.action==="run"){
       const view=productionView(true);
       if(!view.workerOnline)throw Error("请先启动生产后台。");

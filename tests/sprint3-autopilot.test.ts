@@ -3,7 +3,7 @@ import {mkdtempSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach,beforeEach,expect,it,vi} from "vitest";
-import {cruiseDay,dispatchCruiseReruns,getCruisePolicy,morning,runCruise,saveCruisePolicy} from "../src/studio/autopilot";
+import {cruiseDay,dispatchCruiseReruns,getCruisePolicy,morning,runCruise as runWithScreen,saveCruisePolicy} from "../src/studio/autopilot";
 import {defaultCruisePolicy} from "../src/types/autopilot";
 import {cardDb,mockAuthor,mockTransport,notify,receive} from "../src/studio/feishu-cards";
 import {productionDb} from "../src/studio/production-db";
@@ -15,6 +15,7 @@ import {fromText} from "../src/studio/article-document";
 import {autopilotHopState,autopilotModelInput,hopHandoff,reserveAutopilotHop} from "../src/studio/autopilot-guard";
 import {advance,lookup} from "../src/studio/tasks";
 import {localProvider} from "../src/studio/provider";
+const runCruise=(date?:Date,manual=false)=>runWithScreen(date,manual,async()=>92);
 
 beforeEach(()=>{
   const dir=mkdtempSync(join(tmpdir(),"cruise-"));

@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useEffect,useState,type FormEvent} from "react";
 import {editorHref} from "@/studio/article-navigation";
 import {defaultCruisePolicy,type CruisePolicy,type LedgerRecord,type MorningCandidate} from "@/types/autopilot";
+import {defaultAutomationPolicy,type AutomationPolicy} from "@/types/readiness";
 import "./autopilot.css";
 
 type PreviewCard={id:string;message:string;delivery:string;result:string;card:{kind:string;title:string;text:string;task:string;version:number;options:string[]}};
@@ -14,6 +15,9 @@ type View={
   cards:PreviewCard[];
   ledger:Array<{record:LedgerRecord;state:string;detail:string;mode:string}>;
   reruns:Array<{task:string;batch:string;status:string}>;
+  automation:AutomationPolicy;
+  budget:{spent:number;pending:number;limit:number;paused:boolean;light:boolean};
+  screens:{title:string;score:number|null}[];
 };
 const states:Record<string,string>={pending:"待同步",unknown:"回执待核对",retry:"等待重试",sent:"已同步",planning:"扫描来源",prepared:"准备提交",submitted:"已提交",empty:"无匹配",failed:"失败"};
 const settings="/studio/settings/autopilot";
@@ -21,6 +25,7 @@ const settings="/studio/settings/autopilot";
 export function AutopilotWorkspace(){
   const [data,setData]=useState<View|null>(null),[day,setDay]=useState(""),[policy,setPolicy]=useState<CruisePolicy|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+  const [automation,setAutomation]=useState<AutomationPolicy|null>(null);
   useEffect(()=>{
     const controller=new AbortController();
     let inFlight=false;
@@ -31,7 +36,7 @@ export function AutopilotWorkspace(){
         const response=await fetch("/api/autopilot"+(day?"?day="+encodeURIComponent(day):""),{signal:controller.signal,cache:"no-store"});
         if(!response.ok)throw Error("暂时无法读取早报。");
         const view:View=await response.json();
-        if(!controller.signal.aborted){setData(view);setPolicy(current=>current??view.policy);}
+        if(!controller.signal.aborted){setData(view);setPolicy(current=>current??view.policy);setAutomation(current=>current??view.automation);}
       }catch(error){if(!controller.signal.aborted)setError(error instanceof Error?error.message:String(error));}
       finally{inFlight=false;}
     }
@@ -52,6 +57,7 @@ export function AutopilotWorkspace(){
     finally{setBusy(false);}
   }
   const draft=policy??defaultCruisePolicy;
+  const costs=automation??defaultAutomationPolicy;
   const change=<K extends keyof CruisePolicy>(key:K,value:CruisePolicy[K])=>setPolicy({...draft,[key]:value});
   const candidates=data?.items.filter(item=>item.candidate&&!item.decision)??[];
   const exclusions=data?.items.filter(item=>!item.candidate&&!item.decision)??[];
@@ -72,6 +78,18 @@ export function AutopilotWorkspace(){
         <button type="button" className="primary" disabled={busy||!data} onClick={()=>void post({action:"run"})}>{data?.demo?"模拟夜间巡航":"立即巡航"}</button></div>
       </form>
       {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
+    </section>
+    <section className="surface" aria-labelledby="cruise-cost"><h2 id="cruise-cost">画像初筛与每日费用</h2>
+      <form onSubmit={e=>{e.preventDefault();void post({action:"automation",policy:costs});}}>
+        <div className="cruise-fields"><label>画像最低分<input required type="number" min={0} max={100} value={costs.matchMin}
+          onChange={e=>setAutomation({...costs,matchMin:e.target.valueAsNumber})}/></label>
+        <label>每日估算上限（元）<input required type="number" min=".001" max="100000" step=".001" value={costs.dailyMicros/1e6}
+          onChange={e=>setAutomation({...costs,dailyMicros:Math.round(e.target.valueAsNumber*1e6)})}/></label></div>
+        <button disabled={busy||!data}>保存画像与预算</button>
+      </form>
+      {data?.budget&&<p role="status">已估算 {(data.budget.spent/1e6).toFixed(4)} 元 · 在途及待核 {(data.budget.pending/1e6).toFixed(4)} 元 ·
+        {data.budget.paused?" 已暂停":data.budget.light?" 非关键调用已切轻量":" 正常"}（北京时间）</p>}
+      {!!data?.screens.length&&<details><summary>查看画像初筛记录</summary><ul>{data.screens.map((item,index)=><li key={index}>{item.title} · {item.score===null?"未完成，等待核对":item.score+" 分"}</li>)}</ul></details>}
     </section>
 
     <section className="surface" aria-labelledby="cruise-morning"><header className="cruise-section-head">

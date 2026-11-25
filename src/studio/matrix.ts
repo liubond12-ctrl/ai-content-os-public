@@ -1,6 +1,7 @@
 import type {DatabaseSync} from "node:sqlite";
 import type {ProductionDraft} from "./production";
 import type {MatrixMatch} from "../types/sprint5";
+import {seriesSources} from "./production-series";
 
 type Topic={title:string;argument?:string;hook?:string};
 export const topicKey=(value:string)=>value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu,"");
@@ -30,8 +31,10 @@ const draftTopic=(draft:ProductionDraft):Topic=>({title:draft.topic,argument:dra
 export function matrixMatches(db:DatabaseSync,draft:ProductionDraft,batch:ProductionDraft[]=[]):MatrixMatch[]{
   if(!draft.account||!draft.topic.trim())return [];
   const probe=draftTopic(draft),matches:MatrixMatch[]=[];
+  const predecessorIds=new Set(seriesSources(db,draft.account,draft.series).map(row=>row.task));
   const append=(id:string,account:string,state:string,topic:Topic,href:string,alternate?:Topic)=>{
-    const signals=[...new Set([...matrixSignals(probe,topic),...(alternate?matrixSignals(probe,alternate):[])])];
+    const signals=[...new Set([...matrixSignals(probe,topic),...(alternate?matrixSignals(probe,alternate):[])])]
+      .filter(signal=>signal!=="标题"||!predecessorIds.has(id));
     if(signals.length)matches.push({id,account,state,title:topic.title,signals,href});
   };
   for(const other of batch)if(other.id!==draft.id)append(other.id,other.account,"同批次",draftTopic(other),"/production/create?draft="+other.id);

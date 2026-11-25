@@ -22,9 +22,9 @@ async function request(path="",body?:object){
 }
 
 export function CalibrationWorkspace(){
-  const [data,setData]=useState<Snapshot|null>(null),[account,setAccount]=useState(""),[focus,setFocus]=useState<RubricFocus>("结构");
+  const [data,setData]=useState<Snapshot|null>(null),[account,setAccount]=useState(()=>typeof window==="undefined"?"":new URLSearchParams(location.search).get("account")??""),[focus,setFocus]=useState<RubricFocus>("结构");
   const [routes,setRoutes]=useState<ModelPlan[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
-  const [selection,setSelection]=useState("");
+  const [selection,setSelection]=useState(()=>typeof window==="undefined"?"":new URLSearchParams(location.search).get("item")??"");
   const path="?account="+encodeURIComponent(account);
   useEffect(()=>{
     let alive=true;

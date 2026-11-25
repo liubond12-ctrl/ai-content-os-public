@@ -32,6 +32,8 @@ function PriorityCard({ task }: { task: WorkTask }) {
   </Link>;
 }
 
+import {DailyDesk} from "./ReadinessWorkspace";
+
 export default function Cockpit({ initial }: { initial: WorkOverview }) {
   const [data,setData] = useState(initial);
   const [error,setError] = useState("");
@@ -70,6 +72,7 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
       <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
     </div></details>
     <header className="ck-header"><h1>今天的内容工作</h1><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建内容</Link></div></header>
+    <DailyDesk/>
     <Link href="/studio/settings/autopilot">模拟夜间巡航与飞书早报预览 →</Link>
     {error && <p role="status">{error}</p>}
     <section className="ck-work ck-todos" id="home-todos" tabIndex={-1}><RestoreArticlePosition prefix="todo-" fallback="home-todos"/><div className="ck-section-head"><h2>待我处理 {data.todoCount>0&&<small>{data.todoCount}</small>}</h2>

@@ -4,6 +4,7 @@ import {liveSettings,liveTransport} from "@/studio/feishu-message-transport";
 import {runCruise,dispatchCruiseReruns} from "@/studio/autopilot";
 import {feishuLedger} from "@/studio/feishu";
 import {flushLedger,mockLedger} from "@/studio/feishu-ledger";
+import {dispatchFastlane} from "@/studio/fastlane";
 export const runtime="nodejs";
 export async function POST(request:Request){
   const key=process.env.FEISHU_CARD_WORKER_KEY||"",actual=request.headers.get("authorization")?.replace(/^Bearer /,"")||"";
@@ -26,6 +27,7 @@ export async function POST(request:Request){
     dispatchCruiseReruns();
     const ledger=mode==="mock"?(demo?mockLedger():undefined):feishuLedger();
     if(ledger)await flushLedger(demo?"mock":"live",ledger);
+    if(demo||mode==="live")await dispatchFastlane();
     return Response.json({ok:true});
   }catch(e){return Response.json({error:e instanceof Error?e.message:"未确认"},{status:409});}
 }

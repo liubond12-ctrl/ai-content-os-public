@@ -41,6 +41,8 @@ export default async function Settings({searchParams}:{searchParams:Promise<{run
       <li><a href="#backup">备份与恢复</a></li>
     </ul></section>
     <section className="surface"><h2>开发与诊断</h2><ul>
+      <li><Link href="/studio/settings/doctor">System Doctor</Link></li>
+      <li><Link href="/studio/settings/governance">治理效果对比</Link></li>
       <li><Link href="/quality">质量检查、模型实验与诊断</Link></li>
       <li><Link href="/acceptance">验收报告</Link></li><li><Link href="/examples">验收示例</Link></li>
       <li><Link href="/practice">离线写作练习</Link></li>

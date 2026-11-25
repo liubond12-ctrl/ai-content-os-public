@@ -2,6 +2,7 @@ import {z} from "zod";
 import {cruiseMaterial} from "../types/autopilot";
 import {atomicBrick} from "../types/calibration";
 import {chapterPlan} from "../types/sprint5";
+import {seriesKey,seriesSource} from "../types/readiness";
 
 export const productionPlatforms = ["小红书","抖音","公众号"] as const;
 export const productionPlatform = z.enum(["",...productionPlatforms]);
@@ -27,6 +28,7 @@ export const productionInput=z.object({
   experiment:z.string().trim().max(240).optional(),
   accountVersion:z.number().int().nonnegative().optional(),
   plannedDay:z.iso.date().optional(),
+  series:seriesKey.optional(),seriesSources:z.array(seriesSource).max(5).optional(),
   chapters:z.array(chapterPlan).min(2).max(6).optional(),
   sourceMaterials:z.array(cruiseMaterial).max(4).readonly().optional(),
   bricks:z.array(atomicBrick).max(8).readonly().optional(),

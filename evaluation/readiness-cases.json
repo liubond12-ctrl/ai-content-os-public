@@ -1,0 +1,19 @@
+{
+  "facts": [
+    {"id":"date","body":"赛事报名日期为2027年5月1日。","unsupported":true,"singleDetected":true},
+    {"id":"experience","body":"我去年参加了这场活动。","unsupported":true,"singleDetected":false},
+    {"id":"stats","body":"官方统计显示参与人数增长了32%。","unsupported":true,"singleDetected":false},
+    {"id":"constraint","body":"缺少真实经历与核实信息的地方，不作补足。","unsupported":false,"singleDetected":false},
+    {"id":"fiction","body":"原创虚构示例，她把纸角压平。","unsupported":false,"singleDetected":false}
+  ],
+  "personas": [
+    {"id":"editor","rule":"只用可观察的纸张动作解释改稿"},
+    {"id":"operator","rule":"只用执行顺序解释读者下一步"}
+  ],
+  "channels": [
+    {"variant":"xiaohongshu","text":"加我微信","risky":true},
+    {"variant":"douyin-script","text":"绝对有效","risky":true},
+    {"variant":"wechat","text":"稳赚不赔","risky":true},
+    {"variant":"wechat","text":"示例步骤，请按实际材料核对。","risky":false}
+  ]
+}

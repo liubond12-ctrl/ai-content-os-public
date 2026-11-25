@@ -9,9 +9,10 @@ import {cruiseDay,currentMorningCandidate,decideMorning,morning,morningBinding,r
 import {ensureAutopilotGuard,hopHandoff} from "./autopilot-guard";
 import {ensureFeishuResolutions,resolvedInWorkbench,resolvedOnWeb} from "./feishu-resolution";
 import {duePublications,getRetros} from "./calibration";
+import {budgetDay,budgetTables} from "./readiness-budget";
 
 export type Kind="batch"|"blocked"|"choice";
-export interface Card {kind:Kind|"morning"|"morning-item"|"handoff"|"retro";title:string;text:string;task:string;version:number;review:string;binding:string;options:string[];day?:string;candidate?:MorningCandidate}
+export interface Card {kind:Kind|"morning"|"morning-item"|"handoff"|"retro"|"budget";title:string;text:string;task:string;version:number;review:string;binding:string;options:string[];day?:string;candidate?:MorningCandidate}
 export const mockAuthor="local-preview-author";
 export function cardDb(timeout=5000){
   const existing=new DatabaseSync(process.env.STUDIO_DB||"data/studio.sqlite");
@@ -83,6 +84,7 @@ function retroAllowed(mode:Mode){
     process.env.FEISHU_RETRO_SEND_APPROVED==="1"&&!process.env.FEISHU_CARD_PILOT_TASK;
 }
 function cardEnabled(db:DatabaseSync,mode:Mode,card:Card){
+  if(card.kind==="budget")return morningAllowed(mode);
   if(card.kind==="retro")return retroAllowed(mode);
   return card.kind==="morning"||card.kind==="morning-item"||card.kind==="handoff"?morningAllowed(mode):prefs(db,mode).enabled[card.kind];
 }
@@ -107,6 +109,12 @@ function collectMorning(db:DatabaseSync,mode:Mode,owner:string){
 }
 export function collect(db:DatabaseSync,mode:Mode,owner:string){
   collectMorning(db,mode,owner);
+  if(morningAllowed(mode)){
+    budgetTables(db);
+    const day=budgetDay(),alert=db.prepare("SELECT reason FROM daily_model_alert WHERE day=?").get(day);
+    if(alert)storeCard(db,mode,owner,"budget:"+day,{kind:"budget",title:"巡航预算暂停 · "+day,text:String(alert.reason),
+      day,task:"",version:0,review:"",binding:day,options:[]});
+  }
   if(retroAllowed(mode)){
     for(const item of duePublications(db)){
       const slot="retro:"+item.task+":"+item.version;

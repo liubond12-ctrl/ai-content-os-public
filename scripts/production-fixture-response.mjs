@@ -4,6 +4,8 @@ export function fixtureResponse(instruction,data){
  const source=request?.production?.sourceMaterials?.[0];
  const input=source?{...request,topic:source.title}:request;
  const assessment={label:"普通",disputed:false,dimensions:{内容策略:"离线结构检查",表达质量:"明确虚构",内容结构:"按栏目组织",基础规范:"业务标准未配置"},issues:[],claims:[]};
+ if(instruction.startsWith("巡航画像匹配 v1"))return {score:data.material.title.includes("初筛排除")?25:92};
+ if(instruction==="返回 JSON {ok:true}。")return {ok:true};
  if(instruction.startsWith("分章长文 v1"))return {paragraphs:[
   {text:"虚构写法练习。"+data.chapter.heading+"先给一个可见动作。"+(data.authorRevision?"按编辑要求改为观察纸边的变化。":""),sources:data.sources.slice(0,1).map(row=>row.sourceId)},
   {text:"将动作与下一步安排连起来，再核对读者能看到哪些证据。",sources:[]}

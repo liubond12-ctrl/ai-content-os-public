@@ -16,6 +16,8 @@ import {brickPin} from "../types/calibration";
 import {freezeBricks} from "./atomic-bricks";
 import {matrixMatches} from "./matrix";
 import {chapterPlan} from "../types/sprint5";
+import {seriesKey} from "../types/readiness";
+import {claimSeries,seriesSources} from "./production-series";
 
 const line=z.string().trim().max(4000);
 export const entitySchema=z.object({
@@ -37,6 +39,7 @@ export const draftSchema=z.object({
   brief:singleBrief.optional(),bricks:z.array(brickPin).max(8).optional(),experiment:z.string().trim().max(240).optional(),
   chapters:z.array(chapterPlan).min(2).max(6).refine(rows=>new Set(rows.map(row=>row.id)).size===rows.length&&new Set(rows.map(row=>row.heading)).size===rows.length,"章节标题和标识必须唯一").optional(),
   plannedDay:z.iso.date().optional(),
+  series:seriesKey.optional(),
 });
 export type ProductionDraft=z.infer<typeof draftSchema>;
 type Snapshot=z.infer<typeof ruleSnapshot>;
@@ -104,12 +107,15 @@ export function previewDraft(draft:ProductionDraft){
     const scoped={...draft,goal:resolved?.goal||draft.goal};
     if(cloudEnabled()&&draft.bricks?.length)throw Error("素材积木仅可提交给本机模型，请先移除积木");
     if(draft.chapters&&(cloudEnabled()||draft.kind!=="自由文章"&&draft.kind!=="图文"||draft.budgetProfile!=="local_extended"))throw Error("分章生成使用本机长文额度，支持图文或自由文章");
+    if(draft.series&&cloudEnabled())throw Error("连载前序资料当前仅限本机装配");
+    const preceding=seriesSources(db,draft.account,draft.series).slice(-5);
     const bricks=freezeBricks(db,draft.account,draft.bricks??[]);
     return {brand:"default" as const,account:account?.id??"",accountVersion:account?.version??0,accountName:account?.name??"未归属",accountDescription:account?.body??"",platform:draft.platform,kind:draft.kind,
       requirements:draft.requirements,outline:draft.outline,imagesRequired:resolved?.imagesRequired??draft.imagesRequired,attachments,
       ...(bricks.length?{bricks}:{}),
       ...(draft.chapters?{chapters:draft.chapters}:{}),
       ...(draft.plannedDay?{plannedDay:draft.plannedDay}:{}),
+      ...(draft.series?{series:draft.series,seriesSources:preceding}:{}),
       ...(draft.brief?{authorBrief:draft.brief.note,writingPreference:account?.writingPreference||"",resolved,illustrations,reused}:{}),
       rules:snapshots(entities(db,"rule"),scoped,account),standards:snapshots(entities(db,"standard"),scoped,undefined),budget:productionBudget(draft.kind,cloudEnabled()?"cloud_review":draft.budgetProfile)};
   }finally{db.close();}
@@ -244,6 +250,11 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
       if(d.bricks?.length)freezeBricks(db,d.account,d.bricks);
       const id=randomUUID();
       const p=previews[i];
+      if(d.series){
+        const frozen=seriesSources(db,d.account,d.series).slice(-5);
+        if(JSON.stringify(frozen)!==JSON.stringify(p.seriesSources))throw Error("前序专题版本已变化，请重新预检");
+        claimSeries(db,d.account,d.series,id);
+      }
       const material=input.autopilot?.materials.get(d.id);
       if(input.autopilot&&!material)throw Error("缺少巡航原始资料");
       const task:Task={id,revision:0,stage:"assemble",records:[],input:brief.parse({persona:"general",topic:d.topic,audience:p.resolved?.audience??d.audience,format:d.kind==="口播稿"?"口播稿":d.kind==="分镜脚本"?"短视频脚本":"图文文章",goal:p.resolved?.goal??d.goal,style:p.resolved?.style?.slice(0,600),mode:"keyword",generate:true,sources:d.sources.length?d.sources:undefined,production:{...p,mode,experiment:d.experiment,...(material?{draftId:d.id,sourceMaterials:[material]}:{})}})};

@@ -2,6 +2,7 @@ import {createServer} from "node:http";
 import {fixtureResponse} from "./production-fixture-response.mjs";
 const server=createServer(async(req,res)=>{
  try{
+ if(req.url==="/bge-health"&&req.method==="GET"){res.setHeader("content-type","application/json");res.end(JSON.stringify({ready:true,backend:"bge",demo:true}));return;}
  let raw="";for await(const part of req)raw+=part;
  const call=JSON.parse(raw),data=JSON.parse(call.messages[1].content);
  const input=data.input??data.request;

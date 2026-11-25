@@ -18,7 +18,8 @@ if(demo){
  if(!existsSync(knowledge))writeFileSync(knowledge,JSON.stringify({schemaVersion:2,files:[],chunks:[]}));
  const experiment=new DatabaseSync(path.join(dir,"experiments/lamp-deepseek-once.sqlite"));experiment.close();
 }
-if(demo)Object.assign(env,{STUDIO_QUEUE_LEASE_MS:"15000",STUDIO_MODEL:"v2-local-fixture",STUDIO_MODEL_URL:"http://127.0.0.1:"+modelPort+"/chat",STUDIO_MODEL_KEY:"",STUDIO_FEISHU_SCOPE:"null",STUDIO_FEISHU_TOKEN:"",STUDIO_EXPERIMENT_DB:path.join(dir,"experiments/lamp-deepseek-once.sqlite")});
+if(demo)Object.assign(env,{STUDIO_QUEUE_LEASE_MS:"15000",STUDIO_MODEL:"v2-local-fixture",STUDIO_MODEL_URL:"http://127.0.0.1:"+modelPort+"/chat",
+  STUDIO_PYTHON_BGE_HEALTH:"http://127.0.0.1:"+modelPort+"/bge-health",STUDIO_MODEL_KEY:"",STUDIO_FEISHU_SCOPE:"null",STUDIO_FEISHU_TOKEN:"",STUDIO_EXPERIMENT_DB:path.join(dir,"experiments/lamp-deepseek-once.sqlite")});
 if(demo)Object.assign(env,{FEISHU_CARD_WORKBENCH:env.STUDIO_WORKER_URL,FEISHU_CARD_WORKER_KEY:env.STUDIO_WORKER_KEY,FEISHU_RETRO_SEND_APPROVED:"0",
   FEISHU_CARD_LIVE_APPROVED:"0",FEISHU_MORNING_SEND_APPROVED:"0",FEISHU_LEDGER_WRITE_APPROVED:"0"});
 const children=[];

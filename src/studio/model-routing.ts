@@ -3,6 +3,17 @@ import {randomUUID} from "node:crypto";
 import {z} from "zod";
 import {modelRoute,routePurpose,type RoutePurpose} from "../types/calibration";
 
+export function lightRoute(purpose:RoutePurpose){
+  if(process.env.STUDIO_DEMO_INSTANCE==="1"){
+    const baseline=routePlan(purpose);
+    return baseline.cloud?undefined:{...baseline,configured:true,concurrency:1};
+  }
+  try{
+    const input=modelRoute.safeParse(JSON.parse(process.env.STUDIO_LIGHT_MODEL_ROUTE??"null"));
+    return input.success?{...input.data,purpose,configured:true,cloud:false}:undefined;
+  }catch{return undefined;}
+}
+
 export function routePlan(purpose:RoutePurpose){
   const current=(process.env.STUDIO_MODEL_URL||"http://127.0.0.1:11434/v1/chat/completions").trim();
   const cloud=/^https:/i.test(current);

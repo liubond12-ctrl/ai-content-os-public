@@ -251,7 +251,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
     localStorage.setItem("production-last-account",account.id);
     const previous=form.brief??emptyBrief;
     change({...accountDefaults(account),...(!form.account&&form.sources.length?{sources:[...new Set([...account.sources,...form.sources])]}:{}),
-      ...(form.account?{assets:[],bricks:[],brief:{...previous,materials:[],articleRefs:[],failed:[]}}:{brief:previous})});
+      ...(form.account?{assets:[],bricks:[],series:undefined,brief:{...previous,materials:[],articleRefs:[],failed:[]}}:{brief:previous})});
     if(form.account&&(previous.materials.length||previous.articleRefs.length||previous.failed.length||form.assets.length))
       notify("已切换账号，本篇文字保留，原账号材料已移出。");
   }
@@ -358,6 +358,11 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
       {form.intent==="queued"&&<p>此稿在<Link href="/production/create?mode=batch#batch">待生产清单</Link>中，可在批量页提交或移出。</p>}
       <details><summary>排期与同题实验</summary><label>预定发布日期<input type="date" value={form.plannedDay??""} onChange={e=>change({plannedDay:e.target.value||undefined})}/></label>
         {!matches[0]?.length&&<label>同题实验目的<input maxLength={240} value={form.experiment??""} onChange={e=>change({experiment:e.target.value})}/></label>}</details>
+      {form.account&&data.mode!=="真实云端"&&<details><summary>专题连载</summary>
+        <label><input type="checkbox" checked={!!form.series} onChange={e=>change({series:e.target.checked?{label:"",episode:1}:undefined})}/>作为连载的一集</label>
+        {form.series&&<><label>专题标签<input required maxLength={80} value={form.series.label} onChange={e=>change({series:{label:e.target.value,episode:form.series!.episode}})}/></label>
+          <label>集数<input required type="number" min={1} max={9999} value={form.series.episode} onChange={e=>change({series:{label:form.series!.label,episode:Number(e.target.value)}})}/></label></>}
+      </details>}
       {!!matches[0]?.length&&<label>同题实验目的<input maxLength={240} value={form.experiment??""} onChange={e=>change({experiment:e.target.value})}/></label>}
       {error&&<div id="chat-preflight-reply" className="chat-preflight-reply" role="alert" tabIndex={-1}><strong>发送前请补齐</strong><p>{error}</p></div>}
       {!checkedSingle&&state!=="ready"&&<ReadinessNotice id="single-worker" state={state} scope="single" refresh={refresh} basic={!data.standards.some(s=>s.status==="启用")}/>}

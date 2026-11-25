@@ -45,6 +45,7 @@ export function assembleProduction(base:string,production:z.infer<typeof product
       resolution:items.filter(item=>item.hard).length===1?"硬约束优先，保留其余来源供核对":"要求不一致，交由操作者确认"});
   }
   for(const a of production.attachments)modules.push({source:"attachment/"+a.id,hash:hash(a.text)});
+  for(const prior of production.seriesSources??[])modules.push({source:"series/"+prior.task+"@"+prior.version,hash:hash(prior.summary)});
   const compiledContext=base+"\n本次固定写作规范与质量标准（业务标准为空时仅基础检查）\n"+
     JSON.stringify({rules,standards,...(conflicts.length?{conflicts}:{})});
   const trace:AssemblyTrace={account:production.account,accountVersion:production.accountVersion??0,hash:hash(compiledContext),modules,conflicts,references:[...new Set(pins)]};
