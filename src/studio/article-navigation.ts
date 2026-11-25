@@ -6,6 +6,7 @@ const sources:Record<string,{label:string;prefix?:string}>={
   "/production/accounts":{label:"返回账号管理"},
   "/production/free":{label:"返回自由文章"},
   "/production/package":{label:"返回内容包"},
+  "/studio/settings/autopilot":{label:"返回巡航与早报"},
   "/examples":{label:"返回验收示例"},
   "/practice":{label:"返回离线练习"},
 };

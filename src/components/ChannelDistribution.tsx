@@ -8,7 +8,7 @@ type Entry={saved:ChannelDerivation|null;content?:ChannelContent};
 const channels=[["xiaohongshu","小红书"],["douyin-script","抖音"],["wechat","公众号"]] as const;
 
 export function ChannelDistribution({taskId,version,dirtyMother}:{taskId:string;version:number;dirtyMother:boolean}){
-  const [open,setOpen]=useState(false),[variant,setVariant]=useState<ChannelVariant>("xiaohongshu");
+  const [open,setOpen]=useState(()=>typeof window!=="undefined"&&new URLSearchParams(location.search).get("distribution")==="1"),[variant,setVariant]=useState<ChannelVariant>("xiaohongshu");
   const [entries,setEntries]=useState<Partial<Record<ChannelVariant,Entry>>>({});
   const [pending,setPending]=useState(""),[error,setError]=useState(""),[message,setMessage]=useState("");
   const lock=useRef(false);

@@ -14,7 +14,8 @@ export async function POST(req:Request){
     if(body.action==="draft")return Response.json(saveProductionDraft(body.value));
     if(body.action==="preview")return Response.json(z.array(draftSchema).parse(body.drafts).map(previewDraft));
     if(body.action==="batch"||body.action==="single"){
-      const id=submitBatch({...body,drafts:z.array(draftSchema).parse(body.drafts)},body.action==="single"),db=productionDb();
+      const id=submitBatch({id:body.id,drafts:z.array(draftSchema).parse(body.drafts),preview:body.preview,
+        tokenLimit:body.tokenLimit,requestLimit:body.requestLimit,authorizeText:body.authorizeText===true},body.action==="single"),db=productionDb();
       try{return Response.json({id,firstTask:db.prepare("SELECT task FROM production_queue WHERE batch=? ORDER BY position LIMIT 1").get(id)?.task});}finally{db.close();}
     }
     if(body.action==="history"){

@@ -1,13 +1,13 @@
 import "./cards.css";
 import Link from "next/link";
 import {revalidatePath} from "next/cache";
-import {cardDb,prefs,savePrefs,versionLabel,type Card,type Mode} from "@/studio/feishu-cards";
+import {cardDb,decisionLabel,prefs,savePrefs,versionLabel,type Card,type Mode} from "@/studio/feishu-cards";
 import examples from "@/studio/feishu-card-examples.json";
 export const dynamic="force-dynamic";
 const labels={batch:"批次汇总",blocked:"受阻提醒",choice:"主观取舍"};
 function Preview({card,result}:{card:Card;result?:string}){
-  return <article className="fs-preview"><div className={"fs-band fs-"+card.kind}>{labels[card.kind]}</div><h3>{card.title}</h3><p className="fs-copy">{card.text}</p>{card.task&&<p className="meta">{versionLabel(card)}</p>}
-  {result&&<p>{result}</p>}{<div className="fs-options">{(result?(result.startsWith("已记录稍后")&&card.kind==="choice"?card.options.filter(a=>a!=="later"):[]):card.options).map(a=><span key={a}>{a==="later"?"稍后处理":"采用方案 "+a}</span>)}</div>}<p className="meta">请在电脑工作台查看正文与执行记录。</p></article>;
+  return <article className="fs-preview"><div className={"fs-band fs-"+card.kind}>{card.kind==="morning"?"早报摘要":card.kind==="morning-item"?"早报翻牌":card.kind==="handoff"?"转人工":labels[card.kind]}</div><h3>{card.title}</h3><p className="fs-copy">{card.text}</p>{card.task&&<p className="meta">{versionLabel(card)}</p>}
+  {result&&<p>{result}</p>}{<div className="fs-options">{(result?(result.startsWith("已记录稍后")&&card.kind==="choice"?card.options.filter(a=>a!=="later"):[]):card.options).map(a=><span key={a}>{decisionLabel(a)}</span>)}</div>}<p className="meta">请在电脑工作台查看正文与执行记录。</p></article>;
 }
 export default function Page(){
   const mode:Mode=process.env.FEISHU_CARD_LIVE_APPROVED==="1"?"live":"mock",db=cardDb();

@@ -9,6 +9,7 @@ import {SafetyError,reviewSources} from "./safe-demo";
 import {blindSample,developmentCalibration,evaluations} from "./library";
 import {ReviewError} from "./review-error";
 import {isWritingConstraintQuote} from "./fact-claims";
+import {autopilotModelInput} from "./autopilot-guard";
 
 const dimensions=["内容策略","表达质量","内容结构","基础规范"] as const;
 const label=z.enum(["优秀","普通","不合格"]);
@@ -28,7 +29,7 @@ export function articleSubject(id:string,version:number):Subject{
   if(!task?.article || task.article.version!==version)throw Error("文章版本不存在");
   if(task.article.researchVersion!==task.research?.version)throw Error("文章研究依赖不一致");
   const sources=reviewSources(task);
-  return {task,version,title:task.article.title,body:task.article.body,request:task.input,sources};
+  return {task,version,title:task.article.title,body:task.article.body,request:autopilotModelInput(task.input),sources};
 }
 function caseSubject(id:string,version:number):Subject{
   const sample=blindSample(id,version);

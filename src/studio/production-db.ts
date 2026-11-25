@@ -1,5 +1,6 @@
 import {DatabaseSync} from "node:sqlite";
 import {randomUUID} from "node:crypto";
+import {ensureAutopilotGuard} from "./autopilot-guard";
 
 export function productionDb(){
   const db=new DatabaseSync(process.env.STUDIO_DB||"data/studio.sqlite");
@@ -24,6 +25,7 @@ export function productionDb(){
     CREATE TABLE IF NOT EXISTS model_calls(id TEXT PRIMARY KEY,task_id TEXT NOT NULL,payload TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS versions(id TEXT,rev INTEGER,payload TEXT,PRIMARY KEY(id,rev));
     INSERT OR IGNORE INTO production_migrations VALUES(1);`);
+  ensureAutopilotGuard(db);
   return db;
 }
 export function event(db:DatabaseSync,task:string,version:number,status:string,summary:string){

@@ -1,0 +1,10 @@
+.desk .content .autopilot-page {max-width:1120px}
+.cruise-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin:12px 0}
+.cruise-fields label,.cruise-actions label {display:grid;gap:6px;min-width:0}
+.cruise-fields input,.cruise-actions input {min-height:40px;padding:6px 8px}
+.cruise-enabled {display:flex;gap:8px}
+.cruise-section-head,.cruise-actions {display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.cruise-section-head {justify-content:space-between}
+.desk .autopilot-page .cruise-candidate {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:12px 0;gap:10px;background:transparent;border-top:1px solid var(--line)}
+.cruise-candidate h3,.cruise-candidate p{margin:3px 0;overflow-wrap:anywhere}
+.cruise-card-text{white-space:pre-wrap}

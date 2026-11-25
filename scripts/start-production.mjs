@@ -19,11 +19,14 @@ if(demo){
  const experiment=new DatabaseSync(path.join(dir,"experiments/lamp-deepseek-once.sqlite"));experiment.close();
 }
 if(demo)Object.assign(env,{STUDIO_QUEUE_LEASE_MS:"15000",STUDIO_MODEL:"v2-local-fixture",STUDIO_MODEL_URL:"http://127.0.0.1:"+modelPort+"/chat",STUDIO_MODEL_KEY:"",STUDIO_FEISHU_SCOPE:"null",STUDIO_FEISHU_TOKEN:"",STUDIO_EXPERIMENT_DB:path.join(dir,"experiments/lamp-deepseek-once.sqlite")});
+if(demo)Object.assign(env,{FEISHU_CARD_WORKBENCH:env.STUDIO_WORKER_URL,FEISHU_CARD_WORKER_KEY:env.STUDIO_WORKER_KEY,
+  FEISHU_CARD_LIVE_APPROVED:"0",FEISHU_MORNING_SEND_APPROVED:"0",FEISHU_LEDGER_WRITE_APPROVED:"0"});
 const children=[];
 function start(args){const c=spawn(process.execPath,args,{windowsHide:true,stdio:"inherit",env});children.push(c);return c;}
 if(demo&&!process.argv.includes("--no-model"))start(["scripts/production-demo-model.mjs"]);
 start(["node_modules/next/dist/bin/next","start","-H","127.0.0.1","-p",port]);
 if(!noWorker)start(["scripts/production-worker.mjs"]);
+if(demo&&!noWorker)start(["scripts/feishu-notifier.mjs"]);
 function stop(){for(const child of children)child.kill();process.exit();}
 process.on("SIGINT",stop);process.on("SIGTERM",stop);
 console.log("工作台 http://127.0.0.1:"+port+" 模式 "+(demo?"离线示例":env.STUDIO_PRODUCTION_SCOPE?"真实云端":"本机模型")+" 数据 "+dir+" worker "+(!noWorker?"启动":"未启动"));

@@ -11,6 +11,7 @@ import {saveCall,callsFor,summarizeUsage,BudgetError,type CallRecord} from "./us
 import {formats,generalContext,methodIndex,findMethods} from "./library";
 import {generalPreview} from "./general-approval";
 import type {ResearchDecision} from "./research-contract";
+import {autopilotModelInput} from "./autopilot-guard";
 
 export const brief = z.object({
   persona: z.enum(["demoa","demob","general"]).default("general"), topic: z.string().trim().min(1).max(240),
@@ -55,6 +56,7 @@ function hydrateUsage(task:Task){
 }
 export function create(input:unknown){
   const task:Task={id:randomUUID(),revision:0,input:brief.parse(input),stage:"assemble",records:[]};
+  if(task.input.production?.draftId||task.input.production?.sourceMaterials)throw Error("巡航资料只由服务端队列添入");
   if(task.input.environment || task.input.scenario)checkInput(task);
   persist(task); return task;
 }
@@ -94,6 +96,7 @@ export async function approveGeneration(id:string,revision:number,hash:string){
 export async function advance(id:string,revision:number,collaboration=false){
   const task=lookup(id);
   if(!task || task.revision!==revision || ["ready","done","blocked"].includes(task.stage)) return task;
+  if(!collaboration&&task.input.production?.draftId)throw Error("巡航任务由后台队列推进");
   if(!collaboration){const {flow}=await import("./collaboration");if(flow(id))throw Error("任务已由协作流程接管，请使用协作入口继续");}
   const node=task.stage, started=new Date().toISOString();
   if(node==="research" || node==="write"){
@@ -120,7 +123,9 @@ export async function advance(id:string,revision:number,collaboration=false){
   try {
     const {persona,topic,audience,reference,mode}=task.input;
     if(node==="assemble"){
-      task.context=task.input.environment==="safe-demo"?safeAssembly(task):persona==="general"?generalContext(task.input):await assembleContext({persona,topic,additionalConstraints:audience || undefined});
+      task.context=task.input.environment==="safe-demo"?safeAssembly(task):persona==="general"?
+        generalContext(autopilotModelInput(task.input)):
+        await assembleContext({persona,topic,additionalConstraints:audience || undefined});
       if(task.input.production)task.context.compiledContext+="\n本次固定写作规范与质量标准（业务标准为空时仅基础检查）\n"+JSON.stringify({rules:task.input.production.rules,standards:task.input.production.standards});
       task.stage="retrieve";
     } else if(node==="retrieve"){

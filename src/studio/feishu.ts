@@ -1,6 +1,7 @@
 import {DatabaseSync} from "node:sqlite";
 import {createHash} from "node:crypto";
 import {z} from "zod";
+import {LedgerRejected,type LedgerTransport} from "./feishu-ledger";
 
 const id=z.string().regex(/^[a-zA-Z0-9]+$/);
 const config=z.object({app:id,table:id,fields:z.object({title:z.string().min(1),method:z.string().min(1),updated:z.string().min(1)}).strict(),
@@ -84,5 +85,53 @@ export function feishuMethods(){
     const v=JSON.parse(String(r.payload));
     return {id:"fs-"+digest(String(r.source)+"/"+r.id).slice(0,40),version:Number(r.version),title:String(v.title),content:String(v.method),method:String(v.method),format:"图文文章" as const,goal:"借鉴写作技法",tags:["写作技法"],applies:"技法参考",avoid:"不得移植为现实事实",quality:["授权来源"],source:"飞书/"+r.source+"/"+r.id,rights:"已获许可" as const,createdAt:new Date(Number(r.updated)||Date.parse(String(r.updated))).toISOString(),allowExternal:JSON.parse(String(r.permissions)).external===true};
   });}finally{d.close();}
+}
+
+const writeScope=z.object({app:id,table:id,fields:z.object({
+  articleId:z.string().min(1),articleVersion:z.string().min(1),title:z.string().min(1),
+  account:z.string().min(1),channels:z.string().min(1),scheduledAt:z.string().min(1),fingerprint:z.string().min(1),
+}).strict().refine(fields=>new Set(Object.values(fields)).size===7,"台账字段须各自对应不同列")}).strict();
+const remoteRecord=z.object({record_id:z.string().regex(/^rec[a-zA-Z0-9]+$/),fields:z.record(z.string(),z.unknown()).optional()});
+export function feishuLedger(request:typeof fetch=fetch):LedgerTransport|undefined{
+  if(process.env.STUDIO_DEMO_INSTANCE==="1"||process.env.FEISHU_LEDGER_WRITE_APPROVED!=="1")return;
+  const bearer=process.env.FEISHU_LEDGER_WRITE_TOKEN;
+  if(!bearer)return;
+  const scope=writeScope.parse(JSON.parse(process.env.FEISHU_LEDGER_WRITE_SCOPE??"null"));
+  const {fields}=scope,base="https://open.feishu.cn/open-apis/bitable/v1/apps/"+scope.app+"/tables/"+scope.table+"/records";
+  async function call(url:string,method:"POST"|"PUT",body:object,writing=false){
+    const response=await request(url,{method,redirect:"error",signal:AbortSignal.timeout(10000),
+      headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(writing&&[400,401,403,404,429].includes(response.status))throw new LedgerRejected("请求已被拒绝");
+    if(!response.ok)throw Error("飞书台账响应未确认");
+    const data=z.object({code:z.number(),data:z.unknown()}).parse(await response.json());
+    if(data.code!==0)throw Error("飞书台账回执未确认");
+    return data.data;
+  }
+  return {
+    scope:digest(JSON.stringify(scope)),
+    async find(articleId){
+      const query={field_names:[fields.articleId,fields.fingerprint],
+        filter:{conjunction:"and",conditions:[{field_name:fields.articleId,operator:"is",value:[articleId]}]}};
+      const found=z.object({items:z.array(remoteRecord).optional(),has_more:z.boolean()}).parse(await call(base+"/search?page_size=20","POST",query));
+      const items=found.items??[];
+      if(found.has_more||items.length>1)throw Error("台账出现重复 article_id，需人工核对");
+      const row=items[0];
+      if(!row)return null;
+      if(text(row.fields?.[fields.articleId])!==articleId)throw Error("查询结果不属于当前稿件");
+      const stamp=row.fields?.[fields.fingerprint];
+      return {id:row.record_id,fingerprint:stamp?text(stamp):""};
+    },
+    async write(record,fingerprint,recordId){
+      if(recordId&&!/^rec[a-zA-Z0-9]+$/.test(recordId))throw Error("台账记录标识无效");
+      const payload={fields:{
+        [fields.articleId]:record.articleId,[fields.articleVersion]:record.articleVersion,[fields.title]:record.title,
+        [fields.account]:record.account,[fields.channels]:JSON.stringify(record.channels),
+        [fields.scheduledAt]:record.scheduledAt?Date.parse(record.scheduledAt):null,[fields.fingerprint]:fingerprint,
+      }};
+      const result=z.object({record:remoteRecord}).parse(await call(base+(recordId?"/"+recordId:""),recordId?"PUT":"POST",payload,true));
+      if(recordId&&result.record.record_id!==recordId)throw Error("记录回执与台账映射不一致");
+      return result.record.record_id;
+    }
+  };
 }
 

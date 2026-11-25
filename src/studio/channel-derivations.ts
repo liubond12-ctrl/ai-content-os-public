@@ -1,6 +1,7 @@
 import {DatabaseSync} from "node:sqlite";
 import {channelContent,type ChannelContent,type ChannelDerivation,type ChannelVariant} from "../types/channel-derivation";
 import {readArticles,ArticleUnavailable} from "./article-store";
+import {recordLedgerChannel} from "./feishu-ledger";
 
 export const channelRulesVersion="channel-derivation-v1";
 export class DerivationConflict extends Error {}
@@ -47,6 +48,7 @@ export function writeDerivation(taskId:string,articleVersion:number,revision:num
     const updatedAt=new Date().toISOString(),next=revision+1;
     db.prepare("INSERT INTO channel_derivations VALUES(?,?,?,?,?,?,?)")
       .run(taskId,articleVersion,content.variant,next,channelRulesVersion,updatedAt,JSON.stringify(content));
+    recordLedgerChannel(db,taskId,articleVersion);
     db.exec("COMMIT");
     return {taskId,articleVersion,revision:next,rulesVersion:channelRulesVersion,updatedAt,content};
   }catch(error){if(db.isTransaction)db.exec("ROLLBACK");throw error;}finally{db.close();}

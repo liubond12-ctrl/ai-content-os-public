@@ -33,6 +33,7 @@ export default async function Settings({searchParams}:{searchParams:Promise<{run
       <li><Link href="/production/rules">写作规范</Link></li>
       <li><Link href="/production/standards">质量标准</Link></li>
       <li><Link href="/studio/settings/feishu-cards">飞书通知设置与卡片预览</Link></li>
+      <li><Link href="/studio/settings/autopilot">模拟夜间巡航与飞书早报预览</Link></li>
     </ul></section>
     <section className="surface"><h2>数据与备份</h2><ul>
       <li><a href="#backup">备份与恢复</a></li>

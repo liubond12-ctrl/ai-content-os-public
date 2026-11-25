@@ -1,6 +1,8 @@
 // Deterministic local fixture. Never represents real model or business-quality validation.
 export function fixtureResponse(instruction,data){
- const input=data.input??data.request;
+ const request=data.input??data.request;
+ const source=request?.production?.sourceMaterials?.[0];
+ const input=source?{...request,topic:source.title}:request;
  const assessment={label:"普通",disputed:false,dimensions:{内容策略:"离线结构检查",表达质量:"明确虚构",内容结构:"按栏目组织",基础规范:"业务标准未配置"},issues:[],claims:[]};
  if(instruction.startsWith("渠道派生 v1")){
   const {variant}=data;
@@ -26,6 +28,15 @@ export function fixtureResponse(instruction,data){
  if(instruction.startsWith("你是独立")){
   const quote="她停下来。";
   const body=String(data.body),offset=body.lastIndexOf(quote);
+  if(source?.id==="feishu-demo:paper"){
+   const anchor="她把纸张铺平。",at=body.indexOf(anchor);
+   if(at>=0){
+    const strategy=instruction.includes("回应需求");
+    const replacement=strategy?"她用掌心抚平纸角。":"她沿折痕缓缓压了两遍。";
+    assessment.issues=[{field:"body",quote:anchor,offset:at,type:"表达",severity:"轻微",reason:strategy?"具体动作更容易画面化":"放慢动作能保留原段的停顿",suggestion:replacement}];
+    return {assessment,actions:[{issueIndex:0,action:"replace",replacement,evidenceIds:[],blocking:false}]};
+   }
+  }
   if(input?.topic?.includes("会诊演练")&&body.includes("蓝笔落在了桌上。")){
    const strategy=instruction.includes("回应需求");
    const examples=[
@@ -45,7 +56,7 @@ export function fixtureResponse(instruction,data){
   return {assessment,actions:[]};
  }
  if(instruction.includes("审核者。只回应"))return {responses:data.respondTo.map((opinionId,index)=>({opinionId,position:input?.topic?.includes("会诊演练")&&index===1?"withdraw":"maintain",reason:input?.topic?.includes("会诊演练")?(index===1?"撤回原建议，留给作者按这段叙述的节奏取舍。":"维持意见，具体理由已写在本角色的修改方案里。"):"依据当前版本与需求维持意见",evidenceIds:[]}))};
- if(instruction.startsWith("你是Judge")&&input?.topic?.includes("会诊演练"))return {decisions:data.conflicts.map(opinionIds=>({opinionIds,action:"human",selectedIds:[],reason:"两种改法突出不同观察点，由作者按文章重心取舍。",evidenceIds:[]}))};
+ if(instruction.startsWith("你是Judge")&&(input?.topic?.includes("会诊演练")||source?.id==="feishu-demo:paper"))return {decisions:data.conflicts.map(opinionIds=>({opinionIds,action:"human",selectedIds:[],reason:"两种改法突出不同观察点，由作者按文章重心取舍。",evidenceIds:[]}))};
  if(instruction.startsWith("你是Judge"))return {decisions:[{opinionIds:[...new Set(data.conflicts.flat())],action:"accept",selectedIds:data.opinions.filter(o=>o.action==="delete").map(o=>o.id),reason:"删除无信息重复，保留其余栏目",evidenceIds:[]}]};
  if(data.researchInput){
   let body=data.article.body;
@@ -60,6 +71,7 @@ export function fixtureResponse(instruction,data){
   const text="虚构示例："+input.topic+"。她把纸张铺平，圈出一个可以说清楚的动作。";
   const sections=names.map(name=>({name,text:name.includes("时长")?"约三十秒（估算）":spec.kind==="分镜脚本"?"镜头一："+text+"\n镜头二：她将修改后的文字放回桌上。":name==="配图计划"?"第一页：书桌与校样，突出修改动作。":text}));
   const body=sections.find(s=>["正文","口播正文","口播或对白"].includes(s.name));
+  if(source?.id==="feishu-demo:paper")body.text+="她把纸张铺平。";
   if(input.topic.includes("分歧演练"))body.text+="她停下来。她停下来。";
   if(input.topic.includes("核验演练"))body.text+="考试报名日期为2027年5月1日。";
   if(input.topic.includes("长文演练"))body.text+="\n\n"+Array.from({length:input.topic.includes("会诊演练")?120:30},(_,i)=>"第"+(i+1)+"段虚构观察：她比较修改前后的句子，记录动作如何改变读者注意的顺序。先写看得见的动作，再说明有限的判断，不把单个例子推广为普遍结论。").join("\n\n");

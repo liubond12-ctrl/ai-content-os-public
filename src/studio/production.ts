@@ -10,6 +10,8 @@ import {flow,control,tick,type Flow} from "./collaboration";
 import {productionBudget} from "./production-schema";
 import {readArticles} from "./article-store";
 import {briefSuggestions,materialConflicts,resolveBrief,singleBrief} from "./single-brief";
+import {autopilotHopState,hopHandoff,linkAutopilotTask,reserveAutopilotHop} from "./autopilot-guard";
+import type {CruiseMaterial} from "../types/autopilot";
 
 const line=z.string().trim().max(4000);
 export const entitySchema=z.object({
@@ -198,7 +200,8 @@ export function enqueueProductionDrafts(raw:unknown){
     return next;
   }finally{db.close();}
 }
-export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit:number;requestLimit:number;preview:unknown;authorizeText?:boolean},single=false){
+export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit:number;requestLimit:number;preview:unknown;authorizeText?:boolean;
+  autopilot?:{parent?:string;materials:ReadonlyMap<string,CruiseMaterial>}},single=false){
   z.uuid().parse(input.id);
   if(single&&input.drafts.length!==1)throw Error("单篇创作需要一条草稿");
   if(!input.drafts.length||input.drafts.length>100)throw Error("每批次需要 1 至 100 条任务");
@@ -206,6 +209,7 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
   z.number().int().min(1).max(600).parse(input.requestLimit);
   if(!modelConfigured())throw Error("请先配置本机模型；云端批次尚未授权");
   const mode=cloudEnabled()?"真实云端" as const:process.env.STUDIO_DEMO_INSTANCE==="1"?"离线示例" as const:"本机模型" as const;
+  if(input.autopilot&&mode==="真实云端")throw Error("无人值守预生产不提交云端模型。");
   const previews=input.drafts.map(d=>previewDraft(d));
   if(JSON.stringify(previews)!==JSON.stringify(input.preview))throw Error("账号、资料或规范已变化，请重新预检");
   if(cloudEnabled()&&previews.some(p=>p.authorBrief!==undefined&&p.attachments.length)&&(!single||input.authorizeText!==true))throw Error("请在单篇确认页明确授权本次文本材料发送给 DeepSeek");
@@ -222,7 +226,10 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
       if(!row||row.version!==d.version||JSON.stringify(draftSchema.parse(JSON.parse(String(row.payload))))!==JSON.stringify(d))throw Error("清单已变化，请重新预检");
       const id=randomUUID();
       const p=previews[i];
-      const task:Task={id,revision:0,stage:"assemble",records:[],input:brief.parse({persona:"general",topic:d.topic,audience:p.resolved?.audience??d.audience,format:d.kind==="口播稿"?"口播稿":d.kind==="分镜脚本"?"短视频脚本":"图文文章",goal:p.resolved?.goal??d.goal,style:p.resolved?.style?.slice(0,600),mode:"keyword",generate:true,sources:d.sources.length?d.sources:undefined,production:{...p,mode}})};
+      const material=input.autopilot?.materials.get(d.id);
+      if(input.autopilot&&!material)throw Error("缺少巡航原始资料");
+      const task:Task={id,revision:0,stage:"assemble",records:[],input:brief.parse({persona:"general",topic:d.topic,audience:p.resolved?.audience??d.audience,format:d.kind==="口播稿"?"口播稿":d.kind==="分镜脚本"?"短视频脚本":"图文文章",goal:p.resolved?.goal??d.goal,style:p.resolved?.style?.slice(0,600),mode:"keyword",generate:true,sources:d.sources.length?d.sources:undefined,production:{...p,mode,...(material?{draftId:d.id,sourceMaterials:[material]}:{})}})};
+      if(input.autopilot)linkAutopilotTask(db,id,input.autopilot.parent);
       if(cloudEnabled())db.prepare("INSERT INTO production_cloud_grants VALUES(?,?,?,?)").run(id,inputHash(task.input),process.env.STUDIO_MODEL!,new Date().toISOString());
       db.prepare("INSERT INTO versions VALUES(?,?,?)").run(id,0,JSON.stringify(task));
       db.prepare("INSERT INTO production_queue VALUES(?,?,?,'排队','',NULL,NULL,?)").run(id,input.id,i,new Date().toISOString());
@@ -254,6 +261,7 @@ export function queueAction(action:"reorder"|"stop"|"retry",batch:string,version
       ids.forEach((id,i)=>db.prepare("UPDATE production_queue SET position=? WHERE task=?").run(i+1000,id));
     }else for(const id of ids){
       const row=rows.find(r=>r.task===id)!;
+      if(action==="retry"&&autopilotHopState(db,id)?.fused)throw Error(hopHandoff);
       const savedFlow=db.prepare("SELECT payload FROM collaboration WHERE task=?").get(id);
       const f:Flow|undefined=savedFlow?JSON.parse(String(savedFlow.payload)):undefined;
       if(action==="stop"){
@@ -315,6 +323,17 @@ export async function workerTick(owner:string){
     id=String(row.task);
     const task:Task=JSON.parse(String(db.prepare("SELECT payload FROM versions WHERE id=? ORDER BY rev DESC LIMIT 1").get(id)?.payload));
     const storedFlow=db.prepare("SELECT payload FROM collaboration WHERE task=?").get(id);
+    const current:Flow|undefined=storedFlow?JSON.parse(String(storedFlow.payload)):undefined;
+    const phase=task.stage==="research"||task.stage==="write"?"generation":task.stage==="done"?(current?.step==="revision"?"revision":"review"):undefined;
+    if(phase&&!reserveAutopilotHop(db,id,phase,phase==="generation"?0:current?.articleVersion??task.article!.version)){
+      if(current){
+        current.state="human";current.reason=hopHandoff;current.revision++;
+        db.prepare("UPDATE collaboration SET payload=? WHERE task=?").run(JSON.stringify(current),id);
+      }
+      db.prepare("UPDATE production_queue SET status='受阻',reason=?,owner=NULL,lease=NULL,updated=? WHERE task=?").run(hopHandoff,new Date().toISOString(),id);
+      event(db,id,task.revision,"受阻",hopHandoff);
+      db.exec("COMMIT");return;
+    }
     const label=task.stage==="done"?(storedFlow&&JSON.parse(String(storedFlow.payload)).step==="revision"?"修订":"审核"):task.stage==="write"?"生成":"整理资料";
     db.prepare("UPDATE production_queue SET owner=?,lease=?,status=?,updated=? WHERE task=?").run(owner,Date.now()+(process.env.STUDIO_DEMO_INSTANCE==="1"?Number(process.env.STUDIO_QUEUE_LEASE_MS)||300000:300000),label,new Date().toISOString(),id);
     db.prepare("UPDATE production_batches SET version=version+1 WHERE id=(SELECT batch FROM production_queue WHERE task=?)").run(id);

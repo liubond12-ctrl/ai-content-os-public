@@ -4,14 +4,20 @@ import {productionDb} from "./production-db";
 import {articleStateInTransaction,changeArticleInTransaction,ensureArticleTables} from "./article-store";
 import type {Flow} from "./collaboration";
 import type {Opinion} from "./professional-review";
+import type {MorningCandidate} from "../types/autopilot";
+import {cruiseDay,currentMorningCandidate,decideMorning,morning,morningBinding,rerunAvailable} from "./autopilot";
+import {ensureAutopilotGuard,hopHandoff} from "./autopilot-guard";
+import {ensureFeishuResolutions,resolvedInWorkbench,resolvedOnWeb} from "./feishu-resolution";
 
 export type Kind="batch"|"blocked"|"choice";
-export interface Card {kind:Kind;title:string;text:string;task:string;version:number;review:string;binding:string;options:string[]}
+export interface Card {kind:Kind|"morning"|"morning-item"|"handoff";title:string;text:string;task:string;version:number;review:string;binding:string;options:string[];day?:string;candidate?:MorningCandidate}
 export const mockAuthor="local-preview-author";
 export function cardDb(timeout=5000){
   const existing=new DatabaseSync(process.env.STUDIO_DB||"data/studio.sqlite");
-  try{existing.exec("PRAGMA busy_timeout="+timeout);if(existing.prepare("SELECT 1 FROM sqlite_master WHERE name='fs_change_article_drafts_UPDATE'").get())return existing;}catch(e){existing.close();throw e;}
-  existing.close();const db=productionDb();ensureArticleTables(db);
+  try{existing.exec("PRAGMA busy_timeout="+timeout);if(existing.prepare("SELECT 1 FROM sqlite_master WHERE name='fs_change_article_drafts_UPDATE'").get()){
+    ensureAutopilotGuard(existing);ensureFeishuResolutions(existing);return existing;
+  }}catch(e){existing.close();throw e;}
+  existing.close();const db=productionDb();ensureArticleTables(db);ensureFeishuResolutions(db);
   db.exec(`CREATE TABLE IF NOT EXISTS fs_notify(mode TEXT PRIMARY KEY,settings TEXT NOT NULL,since TEXT NOT NULL,heartbeat INTEGER DEFAULT 0,link TEXT DEFAULT '未连接');
   CREATE TABLE IF NOT EXISTS fs_outbox(id TEXT PRIMARY KEY,mode TEXT,owner TEXT,slot TEXT,card TEXT,message TEXT DEFAULT '',delivery TEXT DEFAULT 'pending',result TEXT DEFAULT '',sentHash TEXT DEFAULT '',UNIQUE(mode,owner,slot));
   CREATE TABLE IF NOT EXISTS fs_created(id TEXT PRIMARY KEY,created INTEGER NOT NULL);
@@ -67,7 +73,46 @@ function taskState(db:DatabaseSync,task:string){
 function storeCard(db:DatabaseSync,mode:Mode,owner:string,slot:string,c:Card){
   db.prepare("INSERT INTO fs_outbox(id,mode,owner,slot,card) VALUES(?,?,?,?,?) ON CONFLICT(mode,owner,slot) DO UPDATE SET card=excluded.card WHERE fs_outbox.card<>excluded.card").run(randomUUID(),mode,owner,slot,JSON.stringify(c));
 }
+function morningAllowed(mode:Mode){
+  return mode==="mock"?process.env.STUDIO_DEMO_INSTANCE==="1":process.env.STUDIO_DEMO_INSTANCE!=="1"&&
+    process.env.FEISHU_MORNING_SEND_APPROVED==="1"&&!process.env.FEISHU_CARD_PILOT_TASK;
+}
+function cardEnabled(db:DatabaseSync,mode:Mode,card:Card){
+  return card.kind==="morning"||card.kind==="morning-item"||card.kind==="handoff"?morningAllowed(mode):prefs(db,mode).enabled[card.kind];
+}
+function collectMorning(db:DatabaseSync,mode:Mode,owner:string){
+  if(!morningAllowed(mode))return;
+  const day=cruiseDay(),items=morning(db,day).items;
+  const candidates=items.flatMap(item=>item.candidate&&!item.decision?[item.candidate]:[]);
+  if(!candidates.length)return;
+  if(items.some(item=>item.reason==="等待生成或专业审核"))return;
+  const describe=(candidate:MorningCandidate)=>[
+    candidate.title+" · "+candidate.account+" · "+candidate.score+" 分",
+    candidate.summary,
+    "核心分歧："+(candidate.disagreements.join("、")||"没有记录分歧"),
+  ].join("\n");
+  storeCard(db,mode,owner,"morning:"+day,{kind:"morning",title:"飞书早报 · "+day,text:candidates.map(describe).join("\n\n"),task:"",version:0,review:"",binding:day,day,options:[]});
+  for(const candidate of candidates){
+    const binding=morningBinding(candidate);
+    storeCard(db,mode,owner,"morning-item:"+day+":"+binding,{kind:"morning-item",title:"早报翻牌 · "+candidate.title,text:describe(candidate),
+      task:candidate.taskId,version:candidate.articleVersion,review:candidate.reviewId,binding,day,candidate,
+      options:rerunAvailable(db,day,candidate.taskId)?["approve","rerun"]:["approve"]});
+  }
+}
 export function collect(db:DatabaseSync,mode:Mode,owner:string){
+  collectMorning(db,mode,owner);
+  if(morningAllowed(mode)){
+    const fused=db.prepare(`SELECT f.task,json_extract(v.payload,'$.input.topic') AS title,
+      COALESCE((SELECT max(version) FROM article_snapshots WHERE task_id=f.task),json_extract(v.payload,'$.article.version'),0) AS version
+      FROM autopilot_fuses f JOIN production_queue q ON q.task=f.task
+      JOIN versions v ON v.id=f.task AND v.rev=(SELECT max(rev) FROM versions WHERE id=f.task) WHERE q.status='受阻'`).all();
+    for(const row of fused){
+      const task=String(row.task),version=Number(row.version),title=String(row.title);
+      if(version&&resolvedOnWeb(db,task,version))continue;
+      storeCard(db,mode,owner,"handoff:"+task,{kind:"handoff",title:"转人工 · "+title,
+        text:hopHandoff+"。可在工作台查看已保存的结果。",task,version,review:"",binding:"handoff:"+task,options:[]});
+    }
+  }
   const {enabled,since}=prefs(db,mode);
   const pilot=mode==="live"?process.env.FEISHU_CARD_PILOT_TASK||"":"";
   const generation=Number(db.prepare("SELECT v FROM fs_clock WHERE id=1").get()?.v);
@@ -80,7 +125,7 @@ export function collect(db:DatabaseSync,mode:Mode,owner:string){
     const b=batches.get(batch)||{accounts:new Set<string>(),generated:0,review:0,blocked:0,total:0};
     b.accounts.add(String(row.account||"自由创作"));b.total++;if(row.original||row.edited)b.generated++;if(!confirmed&&row.status==="待人工审核")b.review++;if(!confirmed&&["受阻","失败"].includes(String(row.status)))b.blocked++;batches.set(batch,b);
     if(!confirmed&&["受阻","失败"].includes(String(row.status))){
-      const c=taskState(db,String(row.task))?.card;if(c&&enabled[c.kind]&&(!pilot||c.kind==="choice"&&c.binding===process.env.FEISHU_CARD_PILOT_BINDING))storeCard(db,mode,owner,c.task+":"+c.binding,c);
+    const c=taskState(db,String(row.task))?.card;if(c&&cardEnabled(db,mode,c)&&(!pilot||c.kind==="choice"&&c.binding===process.env.FEISHU_CARD_PILOT_BINDING))storeCard(db,mode,owner,c.task+":"+c.binding,c);
     }
   }
   if(enabled.batch&&!pilot)for(const [batch,b] of batches)storeCard(db,mode,owner,batch,{kind:"batch",title:"批次进展",text:[Array.from(b.accounts).join("、"),"共 "+b.total+" 条 · 已生成 "+b.generated+" · 待审核 "+b.review+" · 需处理 "+b.blocked].join("\n"),task:"",version:0,review:"",binding:batch,options:[]});
@@ -89,12 +134,15 @@ export function versionLabel(c:Card){
   if(!c.task)return "";
   return (c.version?"正文 v"+c.version:"尚无正文")+(c.review?" · 审核 "+c.review.slice(0,8):"");
 }
+export function decisionLabel(action:string){
+  return action==="approve"?"通过并进入分发":action==="rerun"?"打回重跑":action==="later"?"稍后处理":"采用方案 "+action;
+}
 export function renderCard(id:string,c:Card,result=""){
   const text=[c.text,versionLabel(c),result,"请在电脑工作台查看正文与执行记录。"].filter(Boolean).join("\n");
   const elements:object[]=[{tag:"div",text:{tag:"plain_text",content:text}}];
   const available=!result?c.options:result===deferred&&c.kind==="choice"?c.options.filter(a=>a!=="later"):[];
-  if(available.length)elements.push({tag:"action",actions:available.map(action=>({tag:"button",text:{tag:"plain_text",content:action==="later"?"稍后处理":"采用方案 "+action},value:{decision:id,action}}))});
-  return {config:{update_multi:true},header:{template:c.kind==="batch"?"blue":c.kind==="choice"?"purple":"orange",title:{tag:"plain_text",content:c.title}},elements};
+  if(available.length)elements.push({tag:"action",actions:available.map(action=>({tag:"button",text:{tag:"plain_text",content:decisionLabel(action)},value:{decision:id,action}}))});
+  return {config:{update_multi:true},header:{template:c.kind==="batch"||c.kind==="morning"?"blue":c.kind==="choice"||c.kind==="morning-item"?"purple":"orange",title:{tag:"plain_text",content:c.title}},elements};
 }
 export type Callback={operator?:{open_id?:string};context?:{open_message_id?:string};action?:{value?:{decision?:string;action?:string}}};
 export function receive(mode:Mode,owner:string,event:Callback){
@@ -105,7 +153,8 @@ export function receive(mode:Mode,owner:string,event:Callback){
     const row=db.prepare("SELECT * FROM fs_outbox WHERE id=? AND mode=? AND owner=?").get(id,mode,owner);
     if(!row?.message||row.message!==event.context?.open_message_id)throw Error("消息不匹配");
     const c:Card=JSON.parse(String(row.card));
-    if(!c.options.includes(action)||!prefs(db,mode).enabled[c.kind])throw Error("操作不可用");
+    if(!c.options.includes(action)||!cardEnabled(db,mode,c))throw Error("操作不可用");
+    if(resolvedOnWeb(db,c.task,c.version))throw Error(resolvedInWorkbench);
     const existing=db.prepare("SELECT action,status,detail FROM fs_inbox WHERE id=?").get(id);
     const resume=existing?.action==="later"&&existing.detail===deferred&&c.kind==="choice"&&action!=="later";
     if(existing&&!resume){db.exec("COMMIT");return (existing.action===action?"":"已记录其他选择：")+String(existing.detail);}
@@ -117,8 +166,14 @@ export function receive(mode:Mode,owner:string,event:Callback){
   }finally{db.close();}
 }
 function valid(db:DatabaseSync,c:Card,id:string){
+  if(c.task&&resolvedOnWeb(db,c.task,c.version))return false;
   const row=db.prepare("SELECT created FROM fs_created WHERE id=?").get(id);
-  return row&&Number(row.created)+86400000>Date.now()&&taskState(db,c.task)?.card?.binding===c.binding;
+  if(!row||Number(row.created)+86400000<=Date.now())return false;
+  if(c.kind==="morning-item"){
+    const current=c.day&&currentMorningCandidate(db,c.day,c.task);
+    return !!current&&morningBinding(current)===c.binding;
+  }
+  return taskState(db,c.task)?.card?.binding===c.binding;
 }
 export function applyPending(db:DatabaseSync,mode:Mode,owner:string){
   const pending=db.prepare("SELECT i.id,i.action,o.card FROM fs_inbox i JOIN fs_outbox o USING(id) WHERE i.status='pending' AND o.mode=? AND o.owner=?").all(mode,owner);
@@ -126,9 +181,15 @@ export function applyPending(db:DatabaseSync,mode:Mode,owner:string){
     db.exec("BEGIN IMMEDIATE");
     try{
       if(!db.prepare("SELECT 1 FROM fs_inbox WHERE id=? AND status='pending'").get(row.id)){db.exec("COMMIT");continue;}
-      const c:Card=JSON.parse(String(row.card)),s=taskState(db,c.task);
+      const c:Card=JSON.parse(String(row.card));
       let result="版本或任务已变化，决定已过期";
-      if(s&&valid(db,c,String(row.id))&&prefs(db,mode).enabled[c.kind]){
+      if(valid(db,c,String(row.id))&&cardEnabled(db,mode,c)){
+        if(c.kind==="morning-item"){
+          if(!c.day||!c.candidate||(row.action!=="approve"&&row.action!=="rerun"))throw Error("早报决定无效");
+          result=decideMorning(db,c.day,c.candidate,row.action);
+        }else{
+        const s=taskState(db,c.task);
+        if(!s)throw Error("任务已改变");
         if(row.action==="later")result=deferred;
         else{
           const index=row.action==="A"?0:1,o=s.options[index];
@@ -139,6 +200,7 @@ export function applyPending(db:DatabaseSync,mode:Mode,owner:string){
           db.prepare("UPDATE collaboration SET payload=? WHERE task=?").run(JSON.stringify(f),c.task);
           db.prepare("UPDATE production_queue SET status='待人工审核',reason=?,updated=? WHERE task=?").run(reason,new Date().toISOString(),c.task);
           result="已完成 · 正文 v"+state.head.version+" 待人工审核";
+        }
         }
       }
       db.prepare("UPDATE fs_inbox SET status='closed',detail=? WHERE id=?").run(result,row.id);
@@ -156,9 +218,17 @@ export async function notify(mode:Mode,owner:string,transport:Transport,link=mod
   try{
     db.exec("BEGIN IMMEDIATE");collect(db,mode,owner);db.prepare("UPDATE fs_notify SET heartbeat=?,link=? WHERE mode=?").run(Date.now(),link,mode);db.exec("COMMIT");applyPending(db,mode,owner);
     for(const row of db.prepare("SELECT * FROM fs_outbox WHERE mode=? AND owner=? AND delivery IN ('pending','sent')").all(mode,owner)){
-      const c:Card=JSON.parse(String(row.card));if(!prefs(db,mode).enabled[c.kind]||(mode==="live"&&process.env.FEISHU_CARD_PILOT_TASK&&(c.task!==process.env.FEISHU_CARD_PILOT_TASK||c.kind!=="choice"||c.binding!==process.env.FEISHU_CARD_PILOT_BINDING)))continue;
+      const c:Card=JSON.parse(String(row.card));if(!cardEnabled(db,mode,c)||(mode==="live"&&process.env.FEISHU_CARD_PILOT_TASK&&(c.task!==process.env.FEISHU_CARD_PILOT_TASK||c.kind!=="choice"||c.binding!==process.env.FEISHU_CARD_PILOT_BINDING)))continue;
+      if(c.kind==="morning"&&c.day!==cruiseDay()){
+        if(row.delivery==="pending")db.prepare("UPDATE fs_outbox SET delivery='expired' WHERE id=?").run(row.id);
+        continue;
+      }
       let result=String(row.result);
-      if(c.task&&(!result||result===deferred)&&!valid(db,c,String(row.id))){result="版本或任务已变化，卡片已过期";db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);}
+      const resolving=c.task&&resolvedOnWeb(db,c.task,c.version)&&(!result||result===deferred||result.includes("过期")||result==="决定已接收");
+      if(resolving){
+        result=resolvedInWorkbench;
+        db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);
+      }else if(c.task&&c.kind!=="handoff"&&(!result||result===deferred)&&!valid(db,c,String(row.id))){result="版本或任务已变化，卡片已过期";db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);}
       if(!row.message&&result){db.prepare("UPDATE fs_outbox SET delivery='expired' WHERE id=? AND delivery='pending'").run(row.id);continue;}
       const body=renderCard(String(row.id),c,result),digest=hash(body);
       if(row.sentHash===digest||!db.prepare("UPDATE fs_outbox SET delivery='unknown' WHERE id=? AND delivery=? AND card=? AND result=?").run(row.id,row.delivery,row.card,result).changes)continue;
@@ -166,7 +236,10 @@ export async function notify(mode:Mode,owner:string,transport:Transport,link=mod
         const message=row.message?String(row.message):await transport.send(owner,String(row.id),body);
         if(row.message)await transport.update(message,body);
         db.prepare("UPDATE fs_outbox SET delivery='sent',message=?,sentHash=? WHERE id=?").run(message,digest,row.id);
-      }catch{/* An interrupted delivery stays unknown until manually reconciled. */}
+      }catch{
+        // A resolve retries an idempotent replacement of the same message.
+        if(row.message&&result===resolvedInWorkbench)db.prepare("UPDATE fs_outbox SET delivery='sent' WHERE id=?").run(row.id);
+      }
     }
   }finally{db.close();}
 }

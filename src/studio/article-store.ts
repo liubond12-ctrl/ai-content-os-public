@@ -5,6 +5,8 @@ import {z} from "zod";
 import type {Task} from "./tasks";
 import {documentSchema,fromText,quoteRange,plainText,type ArticleDocument} from "./article-document";
 import {endingEditId} from "../types/multi-agent-review";
+import {enqueueLedger} from "./feishu-ledger";
+import {resolveFeishuCard,savedConflictEdit} from "./feishu-resolution";
 
 export interface ArticleSnapshot {
   taskId:string;version:number;sourceTaskRevision:number;researchVersion:number;
@@ -153,6 +155,10 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
     db.prepare("INSERT INTO article_drafts VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload")
       .run(input.taskId,draft.revision,JSON.stringify(draft));
     const result=articleStateInTransaction(db,input.taskId);
+    if(input.action==="publish")enqueueLedger(db,input.taskId,result.head.version);
+    if(input.action==="publish"||input.action==="decide"&&!opinion||
+      input.action==="draft"&&input.reviewEdit&&savedConflictEdit(db,input.taskId,current.head.version,input.reviewEdit))
+      resolveFeishuCard(db,input.taskId,current.head.version);
     if(db.prepare("SELECT 1 FROM sqlite_master WHERE name='production_events'").get())event(db,input.taskId,result.head.version,result.head.confirmed?"已定稿":"草稿已保存",result.head.title);
     return result;
 }
