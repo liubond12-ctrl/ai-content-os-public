@@ -8,9 +8,10 @@ import type {MorningCandidate} from "../types/autopilot";
 import {cruiseDay,currentMorningCandidate,decideMorning,morning,morningBinding,rerunAvailable} from "./autopilot";
 import {ensureAutopilotGuard,hopHandoff} from "./autopilot-guard";
 import {ensureFeishuResolutions,resolvedInWorkbench,resolvedOnWeb} from "./feishu-resolution";
+import {duePublications,getRetros} from "./calibration";
 
 export type Kind="batch"|"blocked"|"choice";
-export interface Card {kind:Kind|"morning"|"morning-item"|"handoff";title:string;text:string;task:string;version:number;review:string;binding:string;options:string[];day?:string;candidate?:MorningCandidate}
+export interface Card {kind:Kind|"morning"|"morning-item"|"handoff"|"retro";title:string;text:string;task:string;version:number;review:string;binding:string;options:string[];day?:string;candidate?:MorningCandidate}
 export const mockAuthor="local-preview-author";
 export function cardDb(timeout=5000){
   const existing=new DatabaseSync(process.env.STUDIO_DB||"data/studio.sqlite");
@@ -77,7 +78,12 @@ function morningAllowed(mode:Mode){
   return mode==="mock"?process.env.STUDIO_DEMO_INSTANCE==="1":process.env.STUDIO_DEMO_INSTANCE!=="1"&&
     process.env.FEISHU_MORNING_SEND_APPROVED==="1"&&!process.env.FEISHU_CARD_PILOT_TASK;
 }
+function retroAllowed(mode:Mode){
+  return mode==="mock"?process.env.STUDIO_DEMO_INSTANCE==="1":process.env.STUDIO_DEMO_INSTANCE!=="1"&&
+    process.env.FEISHU_RETRO_SEND_APPROVED==="1"&&!process.env.FEISHU_CARD_PILOT_TASK;
+}
 function cardEnabled(db:DatabaseSync,mode:Mode,card:Card){
+  if(card.kind==="retro")return retroAllowed(mode);
   return card.kind==="morning"||card.kind==="morning-item"||card.kind==="handoff"?morningAllowed(mode):prefs(db,mode).enabled[card.kind];
 }
 function collectMorning(db:DatabaseSync,mode:Mode,owner:string){
@@ -101,6 +107,14 @@ function collectMorning(db:DatabaseSync,mode:Mode,owner:string){
 }
 export function collect(db:DatabaseSync,mode:Mode,owner:string){
   collectMorning(db,mode,owner);
+  if(retroAllowed(mode)){
+    for(const item of duePublications(db)){
+      const slot="retro:"+item.task+":"+item.version;
+      storeCard(db,mode,owner,slot,{kind:"retro",title:"T+3d 复盘 · "+item.prediction.title,
+        text:"请在工作台记录播放或阅读、赞、藏、评论和转化。预测流量区间："+
+          item.prediction.ranges.reach.join("–")+"。",task:item.task,version:item.version,review:"",binding:slot,options:[]});
+    }
+  }
   if(morningAllowed(mode)){
     const fused=db.prepare(`SELECT f.task,json_extract(v.payload,'$.input.topic') AS title,
       COALESCE((SELECT max(version) FROM article_snapshots WHERE task_id=f.task),json_extract(v.payload,'$.article.version'),0) AS version
@@ -224,11 +238,15 @@ export async function notify(mode:Mode,owner:string,transport:Transport,link=mod
         continue;
       }
       let result=String(row.result);
-      const resolving=c.task&&resolvedOnWeb(db,c.task,c.version)&&(!result||result===deferred||result.includes("过期")||result==="决定已接收");
+      if(c.kind==="retro"&&!result&&getRetros(db,{task:c.task,version:c.version}).length){
+        result="复盘已登记";
+        db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);
+      }
+      const resolving=c.kind!=="retro"&&c.task&&resolvedOnWeb(db,c.task,c.version)&&(!result||result===deferred||result.includes("过期")||result==="决定已接收");
       if(resolving){
         result=resolvedInWorkbench;
         db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);
-      }else if(c.task&&c.kind!=="handoff"&&(!result||result===deferred)&&!valid(db,c,String(row.id))){result="版本或任务已变化，卡片已过期";db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);}
+      }else if(c.task&&c.kind!=="handoff"&&c.kind!=="retro"&&(!result||result===deferred)&&!valid(db,c,String(row.id))){result="版本或任务已变化，卡片已过期";db.prepare("UPDATE fs_outbox SET result=? WHERE id=?").run(result,row.id);}
       if(!row.message&&result){db.prepare("UPDATE fs_outbox SET delivery='expired' WHERE id=? AND delivery='pending'").run(row.id);continue;}
       const body=renderCard(String(row.id),c,result),digest=hash(body);
       if(row.sentHash===digest||!db.prepare("UPDATE fs_outbox SET delivery='unknown' WHERE id=? AND delivery=? AND card=? AND result=?").run(row.id,row.delivery,row.card,result).changes)continue;

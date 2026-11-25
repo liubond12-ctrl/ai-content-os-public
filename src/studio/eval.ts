@@ -123,7 +123,7 @@ export async function review(id:string,version:number,blind=false,fixed=false){
     db.exec("COMMIT");
     let stage="provider_setup";
     try{
-      const provider=localProvider({task:s.task,evalId:record.id});
+      const provider=localProvider({task:s.task,evalId:record.id,purpose:"quick-review"});
       record.model=provider.model;
       stage="calibration";
       // Only development calibration summaries; never send holdout labels or excerpts.

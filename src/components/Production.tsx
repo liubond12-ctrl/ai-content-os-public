@@ -248,7 +248,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
     localStorage.setItem("production-last-account",account.id);
     const previous=form.brief??emptyBrief;
     change({...accountDefaults(account),...(!form.account&&form.sources.length?{sources:[...new Set([...account.sources,...form.sources])]}:{}),
-      ...(form.account?{assets:[],brief:{...previous,materials:[],articleRefs:[],failed:[]}}:{brief:previous})});
+      ...(form.account?{assets:[],bricks:[],brief:{...previous,materials:[],articleRefs:[],failed:[]}}:{brief:previous})});
     if(form.account&&(previous.materials.length||previous.articleRefs.length||previous.failed.length||form.assets.length))
       notify("已切换账号，本篇文字保留，原账号材料已移出。");
   }
@@ -338,7 +338,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
       <label>内容类型<select value={form.kind} onChange={e=>change({kind:e.target.value as ProductionDraft["kind"]})}>{(free?["自由文章"]:kinds.filter(k=>k!=="自由文章")).map(k=><option key={k}>{k}</option>)}</select></label>
       </div>
       {data.draftOrigin&&<p className="single-origin"><a href={data.draftOrigin.original} target="_blank" rel="noreferrer">{data.draftOrigin.source} · {data.draftOrigin.title}</a></p>}
-      {form.intent==="draft"&&<SingleBriefInput key={form.id+":"+form.account} draft={form} data={data} update={updateBrief} updateSources={sources=>change({sources})} loading={setUploading} disabled={busy||uploading||!connected} checking={checking}/>}
+      {form.intent==="draft"&&<SingleBriefInput key={form.id+":"+form.account} draft={form} data={data} update={updateBrief} updateSources={sources=>change({sources})} updateBricks={bricks=>change({bricks})} loading={setUploading} disabled={busy||uploading||!connected} checking={checking}/>}
       {form.intent==="queued"&&<p>此稿在<Link href="/production/create?mode=batch#batch">待生产清单</Link>中，可在批量页提交或移出。</p>}
       {error&&<div id="chat-preflight-reply" className="chat-preflight-reply" role="alert" tabIndex={-1}><strong>发送前请补齐</strong><p>{error}</p></div>}
       {!checkedSingle&&state!=="ready"&&<ReadinessNotice id="single-worker" state={state} scope="single" refresh={refresh} basic={!data.standards.some(s=>s.status==="启用")}/>}

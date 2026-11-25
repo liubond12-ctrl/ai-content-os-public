@@ -1,6 +1,7 @@
 import {z} from "zod";
 import {openContent,similar} from "@/studio/content-index";
 import {readArticles} from "@/studio/article-store";
+import {registerPublication} from "@/studio/calibration";
 export const runtime="nodejs";
 export function GET(req:Request){
   const p=new URL(req.url).searchParams;
@@ -21,7 +22,7 @@ export function GET(req:Request){
 }
 const base={task:z.uuid(),version:z.number().int().positive()};
 const input=z.discriminatedUnion("action",[
-  z.object({...base,action:z.literal("destination"),status:z.enum(["待发布","已发布","暂不采用"]),day:z.union([z.literal(""),z.iso.date()]),url:z.union([z.literal(""),z.url({protocol:/^https?$/})])}),
+  z.object({...base,action:z.literal("destination"),status:z.enum(["待发布","已发布","暂不采用"]),day:z.union([z.literal(""),z.iso.date()]),url:z.union([z.literal(""),z.url({protocol:/^https?$/})]),publishedAt:z.iso.datetime({offset:true}).optional()}),
   z.object({...base,action:z.literal("lesson"),previous:z.number().int().positive(),before:z.string().max(4000),after:z.string().max(4000),reason:z.string().trim().min(1).max(2000),scope:z.enum(["账号","专题"]),series:z.string().trim().max(100)})
 ]);
 export async function POST(req:Request){
@@ -34,7 +35,10 @@ export async function POST(req:Request){
     try{
       if(v.action==="destination"){
         if(!current.confirmed)throw Error("只能登记已定稿版本");
+        db.exec("BEGIN IMMEDIATE");
+        if(v.status==="已发布")registerPublication(db,v,v.publishedAt,v.day);
         db.prepare("INSERT OR REPLACE INTO content_destinations VALUES(?,?,?,?,?)").run(v.task,v.version,v.status,v.day,v.url);
+        db.exec("COMMIT");
       }else{
         const prev=articles.find(a=>a.version===v.previous&&a.version<v.version);
         if(!prev||v.before===v.after||!(prev.body.includes(v.before)||prev.title.includes(v.before))||!(current.body.includes(v.after)||current.title.includes(v.after)))throw Error("请核对两个正式版本的原文与修改");

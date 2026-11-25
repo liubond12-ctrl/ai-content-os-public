@@ -56,7 +56,7 @@ function hydrateUsage(task:Task){
 }
 export function create(input:unknown){
   const task:Task={id:randomUUID(),revision:0,input:brief.parse(input),stage:"assemble",records:[]};
-  if(task.input.production?.draftId||task.input.production?.sourceMaterials)throw Error("巡航资料只由服务端队列添入");
+  if(task.input.production?.draftId||task.input.production?.sourceMaterials||task.input.production?.bricks)throw Error("装配资料只由服务端队列添入");
   if(task.input.environment || task.input.scenario)checkInput(task);
   persist(task); return task;
 }
@@ -144,7 +144,8 @@ export async function advance(id:string,revision:number,collaboration=false){
     } else {
       const {flow}=await import("./collaboration");
       const professional=!!flow(id)?.professional;
-      const provider=localProvider({task,professional,futureCalls:professional?(node==="research"?4:3):0});
+      const long=task.input.production?.kind==="自由文章"||task.input.production?.platform==="公众号";
+      const provider=localProvider({task,professional,purpose:node==="research"?"research":long?"long-form":"default",futureCalls:professional?(node==="research"?4:3):0});
       task.model=provider.model;
       if(node==="research"){
         task.research=await research(task,provider);

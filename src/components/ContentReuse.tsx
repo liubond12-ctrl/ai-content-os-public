@@ -46,13 +46,22 @@ export function ArticleReuse({version,versions,embedded=false}:{version:ArticleS
   const source=old.find(v=>v.version===prev);
   const prior=data?.history.find(r=>r.version===version.version);
   async function save(form:HTMLFormElement,action:string){
-    try{const fields=Object.fromEntries(new FormData(form));const result=await read("/api/content",{...fields,task:version.taskId,version:version.version,previous:prev,action});setData(await read(url));setMessage(result.message);}catch(e){setMessage(String(e));}
+    try{
+      const fields=Object.fromEntries(new FormData(form)),clock=fields.publicationClock;
+      delete fields.publicationClock;
+      const publishedAt=fields.status==="已发布"&&typeof clock==="string"&&clock?new Date(clock).toISOString():undefined;
+      const result=await read("/api/content",{...fields,publishedAt,task:version.taskId,version:version.version,previous:prev,action});
+      setData(await read(url));setMessage(result.message);
+    }catch(e){setMessage(String(e));}
   }
   return <section>{!embedded&&<h2>发布与修改经验</h2>}<p role="status">{message}</p>{data&&<>
     {data.origin&&<p>选题出处：{data.origin.title} · {data.origin.source} {/^https?:\/\//i.test(data.origin.original)&&<a href={data.origin.original} target="_blank" rel="noreferrer">原始报道</a>} {/^https?:\/\//i.test(data.origin.canonical)&&<a href={data.origin.canonical} target="_blank" rel="noreferrer">AIHOT 原站</a>}</p>}
     {data.history.length?data.history.map(r=><p key={r.version}>v{r.version} · {r.status} {r.day} {r.url&&<a target="_blank" rel="noreferrer" href={r.url}>发布链接</a>}</p>):<p>发布去向：未记录</p>}
     {version.confirmed&&<details><summary>登记 v{version.version} 发布去向</summary><form onSubmit={e=>{e.preventDefault();void save(e.currentTarget,"destination");}}>
-      <label>发布状态<select name="status" defaultValue={prior?.status}>{["待发布","已发布","暂不采用"].map(s=><option key={s}>{s}</option>)}</select></label><label>实际发布日期<input type="date" name="day" defaultValue={prior?.day}/></label><label>平台链接<input name="url" type="url" defaultValue={prior?.url}/></label><button>保存去向</button></form></details>}
+      <label>发布状态<select name="status" defaultValue={prior?.status}>{["待发布","已发布","暂不采用"].map(s=><option key={s}>{s}</option>)}</select></label><label>实际发布日期<input type="date" name="day" defaultValue={prior?.day}/></label>
+      <label>实际发布时间（本机时区）<input type="datetime-local" name="publicationClock" step="1"/></label>
+      <p>填写实际发布时间，便于核对盲预测先于发布，并从该时刻安排 T+3d。</p>
+      <label>平台链接<input name="url" type="url" defaultValue={prior?.url}/></label><button>保存去向</button></form></details>}
     {source&&<details><summary>记为账号经验</summary><form className="reuse-form" onSubmit={e=>{e.preventDefault();void save(e.currentTarget,"lesson");}}>
       <label>改前版本<select value={prev} onChange={e=>setPrev(Number(e.target.value))}>{old.map(v=><option key={v.version} value={v.version}>v{v.version}</option>)}</select></label>
       <details><summary>核对两个版本的原文</summary><p>v{prev} · {source.title}</p><pre onMouseUp={e=>{const text=window.getSelection()?.toString();const field=e.currentTarget.closest("form")?.elements.namedItem("before") as HTMLTextAreaElement|null;if(text&&field)field.value=text;}}>{source.body}</pre><p>v{version.version} · {version.title}</p><pre onMouseUp={e=>{const text=window.getSelection()?.toString();const field=e.currentTarget.closest("form")?.elements.namedItem("after") as HTMLTextAreaElement|null;if(text&&field)field.value=text;}}>{version.body}</pre></details>

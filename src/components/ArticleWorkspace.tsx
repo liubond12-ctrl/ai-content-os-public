@@ -13,6 +13,7 @@ import type {Review} from "@/studio/eval";
 import {endingEditId,type LocalArticleEdit,type ReviewAnchor} from "@/types/multi-agent-review";
 import {ArticleReview} from "./ArticleReview";
 import {ChannelDistribution} from "./ChannelDistribution";
+import {PredictionLink} from "./CalibrationWorkspace";
 import "./article-editor.css";
 
 
@@ -330,6 +331,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
           </section>
         </div>
         <div className="article-tools-extra">
+          <PredictionLink key={version.version} task={taskId} version={version.version}/>
           <details><summary>发布记录与修改经验</summary>
             <ArticleReuse key={version.version} version={version} versions={state.versions} embedded/>
           </details>

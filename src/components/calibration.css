@@ -1,0 +1,22 @@
+.calibration-page {max-width:1120px}
+.calibration-page .cal-actions,.calibration-page .cal-title{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.calibration-page .cal-title{justify-content:space-between;align-items:center;margin-bottom:12px}
+.calibration-page .cal-actions{margin:12px 0}
+.calibration-page label{display:grid;gap:5px;min-width:0}
+.calibration-page input,.calibration-page select,.calibration-page textarea{max-width:100%;min-width:0}
+.calibration-page .cal-entry{border-top:1px solid var(--line);padding:16px 0;margin-top:14px}
+.desk .calibration-page article.cal-entry{display:block}
+.calibration-page .cal-entry h3{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.calibration-page .cal-entry p{overflow-wrap:anywhere}
+.calibration-page .cal-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(114px,1fr));gap:10px;margin:14px 0}
+.calibration-page .cal-metrics>div{display:grid;gap:4px;border-top:2px solid var(--line);padding-top:7px}
+.calibration-page .cal-metrics strong{font-variant-numeric:tabular-nums}
+.calibration-page .cal-diff{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:16px}
+.calibration-page pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.calibration-page .cal-pass,.calibration-page .cal-block{font-size:.76em;white-space:nowrap;border:1px solid currentColor;border-radius:5px;padding:2px 6px}
+.calibration-page .cal-pass{color:#226452}
+.calibration-page .cal-block{color:#9c321e}
+@media(prefers-color-scheme:dark){
+  .calibration-page .cal-pass{color:#8ad5bf}
+  .calibration-page .cal-block{color:#ffad97}
+}

@@ -1,5 +1,6 @@
 import {z} from "zod";
 import {cruiseMaterial} from "../types/autopilot";
+import {atomicBrick} from "../types/calibration";
 
 export const productionPlatforms = ["小红书","抖音","公众号"] as const;
 export const productionPlatform = z.enum(["",...productionPlatforms]);
@@ -22,6 +23,7 @@ export function productionBudget(kind:z.infer<typeof contentKind>,profile="prote
 export const productionInput=z.object({
   draftId:z.uuid().optional(),
   sourceMaterials:z.array(cruiseMaterial).max(4).readonly().optional(),
+  bricks:z.array(atomicBrick).max(8).readonly().optional(),
   brand:z.literal("default"),account:z.string(),accountName:z.string(),accountDescription:z.string(),platform:productionPlatform,
   kind:contentKind,outline:z.string().max(4000),requirements:z.string().max(4000),
   rules:z.array(ruleSnapshot),standards:z.array(ruleSnapshot),

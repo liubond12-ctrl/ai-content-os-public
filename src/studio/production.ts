@@ -12,6 +12,8 @@ import {readArticles} from "./article-store";
 import {briefSuggestions,materialConflicts,resolveBrief,singleBrief} from "./single-brief";
 import {autopilotHopState,hopHandoff,linkAutopilotTask,reserveAutopilotHop} from "./autopilot-guard";
 import type {CruiseMaterial} from "../types/autopilot";
+import {brickPin} from "../types/calibration";
+import {freezeBricks} from "./atomic-bricks";
 
 const line=z.string().trim().max(4000);
 export const entitySchema=z.object({
@@ -30,7 +32,7 @@ export const draftSchema=z.object({
   budgetProfile:z.enum(["protected","local_extended","cloud_review"]).default("protected"),
   kind:contentKind,requirements:line.default(""),outline:line.default(""),audience:line.default(""),
   sources:z.array(z.string()).default([]),assets:z.array(z.uuid()).default([]),imagesRequired:z.boolean().default(false),
-  brief:singleBrief.optional(),
+  brief:singleBrief.optional(),bricks:z.array(brickPin).max(8).optional(),
 });
 export type ProductionDraft=z.infer<typeof draftSchema>;
 type Snapshot=z.infer<typeof ruleSnapshot>;
@@ -95,8 +97,11 @@ export function previewDraft(draft:ProductionDraft){
     }
     if(problems.some(Boolean))throw Error(problems.filter(Boolean).join("；"));
     const scoped={...draft,goal:resolved?.goal||draft.goal};
+    if(cloudEnabled()&&draft.bricks?.length)throw Error("素材积木仅可提交给本机模型，请先移除积木");
+    const bricks=freezeBricks(db,draft.account,draft.bricks??[]);
     return {brand:"default" as const,account:account?.id??"",accountName:account?.name??"未归属",accountDescription:account?.body??"",platform:draft.platform,kind:draft.kind,
       requirements:draft.requirements,outline:draft.outline,imagesRequired:resolved?.imagesRequired??draft.imagesRequired,attachments,
+      ...(bricks.length?{bricks}:{}),
       ...(draft.brief?{authorBrief:draft.brief.note,writingPreference:account?.writingPreference||"",resolved,illustrations,reused}:{}),
       rules:snapshots(entities(db,"rule"),scoped,account),standards:snapshots(entities(db,"standard"),scoped,undefined),budget:productionBudget(draft.kind,cloudEnabled()?"cloud_review":draft.budgetProfile)};
   }finally{db.close();}
@@ -224,6 +229,7 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
       const row=db.prepare("SELECT payload,version FROM production_drafts WHERE id=?").get(d.id);
       if(d.intent!==(single?"draft":"queued"))throw Error(single?"此稿已在批量清单，请在批量填报中处理":"需求草稿尚未主动加入待生产清单："+d.topic);
       if(!row||row.version!==d.version||JSON.stringify(draftSchema.parse(JSON.parse(String(row.payload))))!==JSON.stringify(d))throw Error("清单已变化，请重新预检");
+      if(d.bricks?.length)freezeBricks(db,d.account,d.bricks);
       const id=randomUUID();
       const p=previews[i];
       const material=input.autopilot?.materials.get(d.id);

@@ -7,6 +7,7 @@ import {documentSchema,fromText,quoteRange,plainText,type ArticleDocument} from 
 import {endingEditId} from "../types/multi-agent-review";
 import {enqueueLedger} from "./feishu-ledger";
 import {resolveFeishuCard,savedConflictEdit} from "./feishu-resolution";
+import {lockPrediction} from "./calibration";
 
 export interface ArticleSnapshot {
   taskId:string;version:number;sourceTaskRevision:number;researchVersion:number;
@@ -155,7 +156,10 @@ export function changeArticleInTransaction(db:DatabaseSync,raw:unknown,opinion?:
     db.prepare("INSERT INTO article_drafts VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload")
       .run(input.taskId,draft.revision,JSON.stringify(draft));
     const result=articleStateInTransaction(db,input.taskId);
-    if(input.action==="publish")enqueueLedger(db,input.taskId,result.head.version);
+    if(input.action==="publish"){
+      enqueueLedger(db,input.taskId,result.head.version);
+      lockPrediction(db,{task:input.taskId,version:result.head.version},result);
+    }
     if(input.action==="publish"||input.action==="decide"&&!opinion||
       input.action==="draft"&&input.reviewEdit&&savedConflictEdit(db,input.taskId,current.head.version,input.reviewEdit))
       resolveFeishuCard(db,input.taskId,current.head.version);

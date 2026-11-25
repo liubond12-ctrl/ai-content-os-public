@@ -28,6 +28,8 @@ const samples=[
   {...base,id:"craft-turn",title:"最后一格空白",content:"镜头扫过贴满标签的抽屉，唯独一格空着。下一镜才揭示它留给还没完成的作品。",format:"短视频脚本",goal:"塑造人物",tags:["反转","视觉叙事"],method:"用物件建立观众预期，通过下一镜的行动修正预期。",applies:"人物短片、工作过程",avoid:"抽象观点的严密论证",quality:["正面示例"]},
   {...base,id:"retail-counter",title:"只有赞美词的橱窗",content:"橱窗上只写着惊艳、非凡、卓越。路人看完，仍不知道里面卖什么。",format:"图文文章",goal:"改进表达",tags:["反面表达","产品价值"],method:"反例：连续形容词留下信息缺口。改写时以可见动作代替评价。",applies:"营销文案修改",avoid:"把反例当作推荐模板",quality:["反面示例"]}
 ].map(s=>referenceCase.parse(s));
+const demoBreakout=referenceCase.parse({...samples[0],id:"demo-breakout",title:"离线模拟爆款 · 先写可见动作",
+  method:"先写一个能看见的动作，再给改写方法。",tags:["爆款","动作开头"],quality:["隔离模拟"],allowExternal:false});
 
 function open(){
   const db=new DatabaseSync(process.env.STUDIO_LIBRARY_DB??"data/content-library.sqlite");
@@ -40,8 +42,11 @@ export function references():z.infer<typeof referenceCase>[]{
   try{
     const imported=db.prepare("SELECT payload FROM reference_cases ORDER BY version").all().map(r=>referenceCase.parse(JSON.parse(String(r.payload))));
     const removed=new Set(db.prepare("SELECT id FROM removed_references").all().map(r=>r.id));
-    return [...new Map([...samples,...imported,...feishuMethods()].map(c=>[c.id,c])).values()].filter(c=>!removed.has(c.id));
+    return [...new Map([...samples,...(process.env.STUDIO_DEMO_INSTANCE==="1"?[demoBreakout]:[]),...imported,...feishuMethods()].map(c=>[c.id,c])).values()].filter(c=>!removed.has(c.id));
   }finally{db.close();}
+}
+export function breakoutReferences(){
+  return references().filter(row=>row.tags.includes("爆款")||row.quality.includes("爆款"));
 }
 export function importCase(input:unknown,purpose:"reference"|"evaluation"){
   const item=(purpose==="reference"?referenceCase:evaluationCase).parse(input);

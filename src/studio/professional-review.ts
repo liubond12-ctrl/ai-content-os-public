@@ -37,7 +37,7 @@ export async function advancePanel(taskId:string,p:Panel,discussionUsed:boolean,
  const checkSources=(ids:string[])=>{if(ids.some(id=>!sourceIds.has(id)))throw Error("意见或裁决引用未知来源");};
  // Reserve the remaining mandatory independent roles; revisions separately reserve their new-version reviews.
  const future=(canRevise?4:0)+(p.phase==="independent"?Math.max(0,p.roles.length-p.reviews.length-1):p.phase==="discussion"?p.reviews.filter(r=>r.opinions.some(o=>p.conflicts.flat().includes(o.id))).length-p.discussion.length:0);
- const provider=()=>isolated?.provider??localProvider({task:s.task,evalId:p.id+":"+nextPanelRole(p),professional:true,futureCalls:future});
+ const provider=()=>isolated?.provider??localProvider({task:s.task,evalId:p.id+":"+nextPanelRole(p),professional:true,futureCalls:future,purpose:"quick-review"});
  const common={articleVersion:p.articleVersion,title:s.title,body:s.body,request:s.request,sources:s.sources,accountRules:s.task.context?.compiledContext??"",rulesVersion:RULE_VERSION};
  if(p.phase==="independent"){
  const role=p.roles.find(role=>!p.reviews.some(r=>r.role===role))!;

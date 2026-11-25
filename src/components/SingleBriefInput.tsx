@@ -10,7 +10,9 @@ type ArticleRef={id:string;title:string;version:number};
 type Update=(fn:(draft:SingleBrief)=>SingleBrief)=>void;
 const purpose={facts:"本次事实资料",style:"只参考写法",image:"只作配图"};
 
-export function SingleBriefInput({draft,data,update,updateSources,loading,disabled,checking}:{draft:ProductionDraft;data:ProductionView;update:Update;updateSources:(sources:string[])=>void;loading:(value:boolean)=>void;disabled:boolean;checking:boolean}){
+import type {AtomicBrick,BrickPin} from "@/types/calibration";
+
+export function SingleBriefInput({draft,data,update,updateSources,updateBricks,loading,disabled,checking}:{draft:ProductionDraft;data:ProductionView;update:Update;updateSources:(sources:string[])=>void;updateBricks:(bricks:BrickPin[])=>void;loading:(value:boolean)=>void;disabled:boolean;checking:boolean}){
   const input=draft.brief??emptyBrief;
   const file=useRef<HTMLInputElement>(null),loadingFiles=useRef(false);
   const [drag,setDrag]=useState(false),[progress,setProgress]=useState(""),[notice,setNotice]=useState("");
@@ -50,7 +52,16 @@ export function SingleBriefInput({draft,data,update,updateSources,loading,disabl
   function material(id:string,patch:Partial<SingleBrief["materials"][number]>){update(p=>({...p,materials:p.materials.map(a=>a.id===id?{...a,...patch}:a)}));}
   const selected=input.materials.find(item=>item.id===panel);
   const failed=input.failed.find(item=>"failed:"+item.name===panel);
-  const dialogTitle=selected?.name||failed?.name||"引用稿件或资料";
+  const dialogTitle=selected?.name||failed?.name||(panel==="bricks"?"素材积木":"引用稿件或资料");
+  const pins=draft.bricks??[];
+  const [brickQuery,setBrickQuery]=useState(""),[bricks,setBricks]=useState<AtomicBrick[]>([]),[brickMessage,setBrickMessage]=useState("");
+  async function findBricks(q=brickQuery){
+    try{
+      const r=await fetch("/api/calibration?"+new URLSearchParams({bricks:"1",account:draft.account,q}));
+      const result=await r.json();if(!r.ok)throw Error(result.error);
+      setBricks(result);setBrickMessage(result.length?"":"没有匹配的本账号积木。");
+    }catch(error){setBrickMessage(error instanceof Error?error.message:"读取失败");}
+  }
   return <div className="single-brief" data-drag={drag} onDragOver={e=>{if(canAttach&&Array.from(e.dataTransfer.types).includes("Files")){e.preventDefault();setDrag(true);}}}
     onDragLeave={e=>{if(!(e.relatedTarget instanceof Node)||!e.currentTarget.contains(e.relatedTarget))setDrag(false);}}
     onDrop={e=>{if(e.dataTransfer.files.length){e.preventDefault();setDrag(false);void upload(Array.from(e.dataTransfer.files));}}}>
@@ -78,6 +89,7 @@ export function SingleBriefInput({draft,data,update,updateSources,loading,disabl
         </div>;
       })}
     </div>}
+    {!!pins.length&&<div className="chat-attachment"><button type="button" className="chat-attachment-name" onClick={()=>{setPanel("bricks");void findBricks("");}}>素材积木 · {pins.length}</button><button type="button" className="chat-remove" aria-label="移除所选素材积木" onClick={()=>updateBricks([])}>×</button></div>}
     <label className="article-sr-only" htmlFor="single-brief-note">这篇想怎么写？</label>
     <textarea id="single-brief-note" maxLength={12000} value={input.note} onChange={e=>{const note=e.target.value;update(p=>({...p,note}));}}
       onPaste={e=>{const files=Array.from(e.clipboardData.files);if(files.length&&canAttach){if(!e.clipboardData.getData("text/plain"))e.preventDefault();void upload(files);}}}
@@ -89,6 +101,7 @@ export function SingleBriefInput({draft,data,update,updateSources,loading,disabl
         {menu&&<div className="chat-add-options">
           <button type="button" onClick={()=>{setMenu(false);file.current?.click();}}>上传文件</button>
           <button type="button" onClick={()=>{setMenu(false);setPanel("references");}}>引用稿件或资料</button>
+          {draft.account&&data.mode!=="真实云端"&&<button type="button" onClick={()=>{setMenu(false);setPanel("bricks");void findBricks("");}}>选用素材积木</button>}
         </div>}
       </div>
       <span role="status" className="chat-upload-status">{progress||(!panel?notice:"")}</span>
@@ -119,6 +132,15 @@ export function SingleBriefInput({draft,data,update,updateSources,loading,disabl
         {input.articleRefs.map(r=><div className="single-material" key={r.id+":"+r.version}><Link href={"/studio/editor?taskId="+r.id+"&version="+r.version} target="_blank">{matches.find(a=>a.id===r.id)?.title??"查看引用原稿"} · v{r.version}</Link>
           <label>借鉴哪种写法<input maxLength={600} placeholder="例如：先写一个动作，再给方法" value={r.method} onChange={e=>{const method=e.target.value;update(p=>({...p,articleRefs:p.articleRefs.map(a=>a.id===r.id&&a.version===r.version?{...a,method}:a)}));}}/></label></div>)}
         <p role="status">{notice}</p>
+      </>}
+      {panel==="bricks"&&<>
+        <div className="single-material-controls"><label>搜索本账号素材积木<input value={brickQuery} onChange={e=>setBrickQuery(e.target.value)}/></label><button type="button" onClick={()=>void findBricks()}>搜索素材积木</button></div>
+        {bricks.map(brick=>{
+          const checked=pins.some(pin=>pin.id===brick.id&&pin.version===brick.version);
+          return <label key={brick.id}><input type="checkbox" checked={checked} disabled={!checked&&pins.length>=8}
+            onChange={()=>updateBricks(checked?pins.filter(pin=>pin.id!==brick.id):[...pins,{id:brick.id,version:brick.version}])}/>{brick.kind} · {brick.text} <small>{brick.source.title} v{brick.source.version}</small></label>;
+        })}
+        <p role="status">{brickMessage}</p>
       </>}
       <button type="button" onClick={()=>setPanel(null)}>完成</button>
     </dialog>}
