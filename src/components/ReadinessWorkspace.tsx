@@ -10,6 +10,12 @@ async function load(path="",method="GET"){
   const result=await response.json();if(!response.ok)throw Error(result.error??"读取失败");
   return result;
 }
+const dailyLabels:Record<string,string>={
+  "待拍板早报":"篇早报待拍板",
+  "已派生待发三端包":"篇成品待发布",
+  "T+3d 到期待填":"篇待填数据",
+  "待合并校准提案":"条新经验待启用",
+};
 export function DailyDesk(){
   const [rows,setRows]=useState<ReadinessTask[]|null>(null),[failed,setFailed]=useState(false);
   useEffect(()=>{
@@ -17,10 +23,11 @@ export function DailyDesk(){
     const refresh=()=>void load().then(data=>{if(active){setRows(data);setFailed(false);}}).catch(()=>{if(active)setFailed(true);});
     refresh();const timer=setInterval(refresh,15000);return()=>{active=false;clearInterval(timer);};
   },[]);
-  if(rows&&!rows.some(row=>row.count>0))return null;
-  return <section className="ck-work readiness-daily" aria-labelledby="daily-desk-heading"><h2 id="daily-desk-heading">今日统一作战台</h2>
+  return <section className="ck-work readiness-daily" aria-label="今日概览">
     {failed&&<p role="status">暂时无法更新。</p>}
-    <div>{rows?.filter(row=>row.count>0).map(row=><Link key={row.label} href={row.href}><strong>{row.count}</strong> {({"已派生待发三端包":"已备好待发布的成品","T+3d 到期待填":"待填写发布表现","待合并校准提案":"可升级的写作规则"} as Record<string,string>)[row.label]??row.label}</Link>)}</div>
+    <div>{rows?.map(row=><Link className="readiness-card" key={row.label} href={row.href}>
+      <strong>{row.count}</strong> <span>{dailyLabels[row.label]??row.label}</span>
+    </Link>)}</div>
     {!rows&&!failed&&<p role="status">正在读取待办…</p>}
   </section>;
 }

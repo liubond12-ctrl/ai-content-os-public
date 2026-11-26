@@ -1,6 +1,18 @@
-.readiness-daily h2{margin:0 0 9px}
 .readiness-daily>div,.readiness-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.readiness-daily a{padding:8px;border:1px solid var(--line);border-radius:6px;overflow-wrap:anywhere}
+.readiness-daily>div{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.desk .readiness-daily .readiness-card{
+  display:grid;align-content:start;gap:4px;min-height:96px;padding:12px 14px;
+  border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);
+  transition:transform var(--ui-feedback-duration) var(--ui-feedback-easing),
+    background-color var(--ui-feedback-duration) var(--ui-feedback-easing),border-color var(--ui-feedback-duration) var(--ui-feedback-easing);
+}
+.readiness-card strong{font-size:clamp(25px,4vw,36px);line-height:1.15;font-weight:750;font-variant-numeric:tabular-nums}
+.readiness-card span{font-size:.92rem}
+@media (hover:hover){.desk .readiness-daily .readiness-card:hover{background:var(--surface-deep);text-decoration:none;border-color:var(--olive)}}
+.desk .readiness-daily .readiness-card:active{transform:scale(.98)}
+.desk .readiness-daily .readiness-card:focus-visible{outline:2px solid var(--focus,var(--olive));outline-offset:3px}
+@media(max-width:1000px){.readiness-daily>div{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
+@media(prefers-reduced-motion:reduce){.desk .readiness-daily .readiness-card:active{transform:none}}
 .readiness-check{border-top:1px solid var(--line);padding:14px 0;margin-top:12px}
 .readiness-check h2 small{font-weight:500;font-size:.72em;margin-left:8px}
 .readiness-pair dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}

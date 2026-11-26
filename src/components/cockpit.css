@@ -3,8 +3,8 @@
   --ck-pad:48px; --ck-muted:var(--muted); --ck-line:var(--line);
   isolation:isolate;
 }
-.desk:has(.cockpit-home) .content {max-width:1280px;position:relative;padding:40px var(--ck-pad) 32px}
-.desk:has(.cockpit-home) .crumb {position:relative;z-index:1;margin:0;color:var(--ck-muted);font-size:13px;min-height:40px;display:flex;align-items:center;padding-right:92px;pointer-events:none}
+.desk:has(.cockpit-home) .content {max-width:1280px;position:relative;padding:40px var(--ck-pad) max(32px,env(safe-area-inset-bottom))}
+.desk:has(.cockpit-home) .crumb {position:relative;z-index:1;margin:0;color:var(--ck-muted);font-size:13px;min-height:40px;display:flex;align-items:center;pointer-events:none}
 .ck-ocean {position:fixed;inset:0 0 0 var(--workspace-rail-width);width:calc(100% - var(--workspace-rail-width));height:100%;pointer-events:none;z-index:-1}
 .ck-ocean[hidden] {display:none}
 .cockpit-home {font-size:16px}
@@ -15,7 +15,7 @@
 .ck-settings label {display:flex;gap:10px;align-items:center;min-height:40px}
 .ck-settings input[type=checkbox]{width:17px;height:17px}
 .ck-settings input[type=range]{width:100px}
-.ck-header,.ck-section-head,.ck-row,.ck-footer,.ck-empty {display:flex;align-items:center;justify-content:space-between;gap:16px}
+.ck-header,.ck-section-head,.ck-row,.ck-empty {display:flex;align-items:center;justify-content:space-between;gap:16px}
 .ck-shortcuts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.desk .ck-hot{display:inline-flex;gap:8px;align-items:center;padding:9px 16px;min-height:44px;border:1px solid #829d9c;border-radius:8px;color:#154a47;background:#ebf4f1;font-weight:650}
 .ck-header {margin:24px 0 32px}
 .desk .ck-header h1 {font-family:inherit;font-size:40px;font-weight:700;line-height:1.2;margin:0}
@@ -46,9 +46,7 @@
 .ck-progress .queued {background:#dfe1e7}
 .ck-flow {margin:32px 0 0}.ck-flow>summary {font-weight:600}
 .ck-flow .workflow {margin-top:12px}
-.ck-footer {margin-top:48px;font-size:16px;flex-wrap:wrap}
-.ck-footer div {display:flex;flex-wrap:wrap;gap:8px 20px}
-.desk .ck-footer a,.desk .ck-section-head a,.desk .ck-row a {color:var(--ck-muted)}
+.desk .ck-section-head a,.desk .ck-row a {color:var(--ck-muted)}
 @media(min-width:1440px){.desk:has(.cockpit-home) .content{width:calc(100% - 312px)}}
 @media(max-width:1439px){.desk:has(.cockpit-home){--ck-pad:32px}}
 @media(max-width:1023px){
@@ -58,18 +56,18 @@
 }
 @media(max-width:639px){
   .desk:has(.cockpit-home){--ck-pad:16px}
-  .desk .ck-header h1{font-size:30px}.ck-header,.ck-footer,.ck-row{flex-wrap:wrap}
+  .desk .ck-header h1{font-size:30px}.ck-header,.ck-row{flex-wrap:wrap}
   .ck-stats{grid-template-columns:repeat(2,1fr)}.ck-stats>a:first-child{grid-column:1/-1}
   .ck-ocean{display:none}.desk .ck-card{padding:18px 16px}
 }
 
 /* The legacy form/detail defaults must not turn the home toolbar into a card. */
-.desk .content main.cockpit-home>.ck-settings,
+.desk .content main.cockpit-home .ck-settings,
 .desk .content main.cockpit-home>.ck-flow {
   background:transparent;border:0;border-radius:0;padding:0;margin:0;
 }
 .desk .content main.cockpit-home>.ck-flow {margin-top:32px}
-.desk .content main.cockpit-home>.ck-settings>summary {padding:0;min-height:40px;font-weight:400}
+.desk .content main.cockpit-home .ck-settings>summary {padding:0;min-height:40px;font-weight:400}
 .desk .content main.cockpit-home>.ck-flow>summary {padding:0;min-height:40px}
 .desk .content main.cockpit-home>.ck-header {margin-bottom:32px}
 .desk .content main.cockpit-home>.ck-header h1 {margin:0}
@@ -112,4 +110,10 @@
   .desk .ck-recent-item { grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
   .ck-recent-item .ck-icon { display: none; }
   .ck-recent-item .ck-secondary { font-size: 13px; }
+}
+
+.ck-header-actions { position:relative; display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.ck-header-actions .ck-settings { position:static; }
+.ck-header-actions .ck-settings > div {
+  position:absolute; inset-inline-end:0; inset-block-start:100%; z-index:2; width:min(244px,100%);
 }

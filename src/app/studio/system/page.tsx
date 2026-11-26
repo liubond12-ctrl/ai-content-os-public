@@ -3,7 +3,7 @@ import Link from "next/link";
 const tools=[
   {title:"检查运行状态",description:"检查模型、资料检索和飞书是否可用。",href:"/studio/settings/doctor"},
   {title:"查看治理效果",description:"用离线样本比较事实核验、账号规范和各平台用词检查。",href:"/studio/settings/governance"},
-  {title:"巡航与费用记录",description:"查看预算、初筛结果、早报和台账。",href:"/studio/settings/autopilot"},
+  {title:"巡航费用与暂停上限",description:"查看当天估算费用、预算上限和暂停状态。",href:"/studio/system/cruise"},
   {title:"资料使用与同题记录",description:"查看稿件采用了哪些资料，以及同题成稿的差异。",href:"/studio/settings/matrix"},
   {title:"规则提案存档与模型分工",description:"查看拦截或已失效的提案，预演当前模型分工。",href:"/studio/system/rules"},
   {title:"飞书通知和卡片",description:"查看通知状态，预览或配置卡片。",href:"/studio/settings/feishu-cards"},

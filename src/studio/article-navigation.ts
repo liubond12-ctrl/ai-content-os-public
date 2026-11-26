@@ -26,7 +26,7 @@ export function draftHref(id:string,kind:string,returnTo:string){
   return path+"?"+new URLSearchParams({draft:id,returnTo});
 }
 export function articleReturn(taskId:string,value?:string,depth=0):{href:string;label:string;source?:string}{
-  const fallback={href:"/articles",label:"前往我的内容"};
+  const fallback={href:"/articles",label:"前往历史文章"};
   if(typeof value!=="string"||!value.startsWith("/")||value.startsWith("//")||/[\\\u0000-\u001f]/.test(value)||depth>2)return fallback;
   const url=new URL(value,"http://workbench.local");
   if(url.origin!=="http://workbench.local")return fallback;

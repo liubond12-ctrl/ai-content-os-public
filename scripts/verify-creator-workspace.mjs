@@ -61,10 +61,12 @@ try{
     await page.setViewportSize({width:scenario.width,height:scenario.height});
     await page.emulateMedia({colorScheme:scenario.color,reducedMotion:scenario.motion});
     await page.goto(base);
+    const menu=page.getByRole("button",{name:"工作空间菜单"});
+    if(await menu.isVisible())await menu.click();
     const nav=page.getByRole("navigation",{name:"工作空间"});
-    assert.deepEqual(await nav.getByRole("link").allTextContents(),["今日待办","写稿与精修","账号与素材"]);
+    assert.deepEqual(await nav.getByRole("link").allTextContents(),["今日待办","写稿与精修","历史文章","热点与巡航","账号与素材"]);
     assert.equal(await nav.getByRole("link",{name:"今日待办"}).getAttribute("aria-current"),"page");
-    await page.getByRole("link",{name:/已备好待发布的成品/}).waitFor();
+    await page.getByRole("link",{name:/篇成品待发布/}).waitFor();
     await snapshot("today");
     const systemLink=page.getByRole("link",{name:"系统机房",exact:true});
     assert(await systemLink.evaluate(element=>{
@@ -73,10 +75,10 @@ try{
     }));
     await systemLink.click();
     await page.getByRole("heading",{name:"系统机房",exact:true}).waitFor();
-    await page.getByRole("link",{name:/巡航与费用记录/}).waitFor();
+    await page.getByRole("link",{name:/巡航费用与暂停上限/}).waitFor();
     await snapshot("system");
+    if(await menu.isVisible())await menu.click();
     await nav.getByRole("link",{name:"写稿与精修"}).click();
-    await page.getByRole("navigation",{name:"写稿与精修"}).getByRole("link",{name:"新建稿件"}).click();
     await page.getByRole("button",{name:"发送",exact:true}).waitFor();
     await snapshot("write");
     const long=new URL(channels.entries.long);long.searchParams.delete("review");

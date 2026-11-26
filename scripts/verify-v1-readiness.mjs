@@ -63,8 +63,8 @@ try{
   assert.equal(halted.cards.filter(row=>row.card.kind==="budget").length,1);
   result.budget={before:costs.budget,after:halted.budget,screens:screened.screens};
   await page.goto(base+"/");
-  await page.getByRole("heading",{name:"今日统一作战台"}).waitFor();
-  await page.getByRole("link",{name:/1 已备好待发布的成品/}).waitFor();
+  await page.getByRole("heading",{name:"今日待办"}).waitFor();
+  await page.getByRole("link",{name:/1 篇成品待发布/}).waitFor();
   await page.screenshot({path:folder+"/03-daily-desk.png",fullPage:true});
   result.desk=ready;
   const author=await prod({action:"entity",kind:"account",value:{id:"v1-series",version:0,status:"启用",name:"写作连载演练",platform:"小红书"}});

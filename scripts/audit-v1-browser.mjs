@@ -36,8 +36,8 @@ try{
   for(const width of [1440,390]){
     await page.setViewportSize({width,height:width===390?844:900});
     await navigate("/");
-    await page.getByRole("heading",{name:"今日统一作战台"}).waitFor();
-    await page.getByRole("link",{name:/已备好待发布的成品/}).waitFor();
+    await page.getByRole("heading",{name:"今日待办"}).waitFor();
+    await page.getByRole("link",{name:/篇成品待发布/}).waitFor();
     await record("home",width);
     await navigate("/hot");
     await page.getByRole("heading",{name:"今日热点"}).waitFor();
@@ -107,7 +107,7 @@ try{
     const retro=phase.desk.find(row=>row.label==="T+3d 到期待填");
     assert(retro?.count>0&&retro.href.includes("item="));
     await navigate("/");
-    const retroLink=page.getByRole("link",{name:/待填写发布表现/});
+    const retroLink=page.getByRole("link",{name:/篇待填数据/});
     assert.equal(await retroLink.getAttribute("href"),retro.href);
     await retroLink.click();
     const retroTarget=new URL(retro.href,base);

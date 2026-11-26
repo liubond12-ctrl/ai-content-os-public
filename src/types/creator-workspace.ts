@@ -1,11 +1,12 @@
-export type CreatorArea = "today" | "writing" | "materials" | "system";
+export type CreatorArea = "today" | "writing" | "history" | "discovery" | "materials" | "system";
+export type CreatorPrimaryArea = Exclude<CreatorArea,"system">;
 export type CreatorShortcut = {
   href: string;
   label: string;
 };
 export type CreatorSection = CreatorShortcut & {
-  id: CreatorArea;
-  icon: "home" | "doc" | "book" | "settings";
+  id: CreatorPrimaryArea;
+  icon: "home" | "doc" | "book" | "hot";
 };
 export type ReviewAttention = "normal" | "clear" | "risk" | "conflict";
 export type SavedPassage = {

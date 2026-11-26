@@ -22,6 +22,6 @@ describe("article return origin",()=>{
     expect(articleReturn(id,reviewHref(id,source)).source).toBe(source);
   });
   it.each([undefined,"//external.example/#recent-"+id,"/#recent-other","/articles#article-other"])("uses a neutral fallback for %s",source=>{
-    expect(articleReturn(id,source)).toEqual({href:"/articles",label:"前往我的内容"});
+    expect(articleReturn(id,source)).toEqual({href:"/articles",label:"前往历史文章"});
   });
 });

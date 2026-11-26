@@ -28,7 +28,7 @@ node scripts/start-production.mjs --demo
 
 打开 [离线演示](http://127.0.0.1:3588)。演示使用独立 SQLite、虚构内容和本机替身。普通热点页也返回本机样例。演练目录与真实启动目录有双向检查。
 
-演示启动器拒绝 Node 进程通过受检查的 HTTP、Fetch、DNS 和 TCP API 访问非回环地址。演练工具可分别拦截并记录浏览器上下文的请求，详见[自查与十分钟验收](docs/v1-release-audit.md)。三个创作者入口、状态反馈和离线复现见[创作者工作台复验](docs/creator-workspace-acceptance.md)。
+演示启动器拒绝 Node 进程通过受检查的 HTTP、Fetch、DNS 和 TCP API 访问非回环地址。演练工具可分别拦截并记录浏览器上下文的请求，详见[自查与十分钟验收](docs/v1-release-audit.md)。创作者导航、状态反馈和离线复现见[创作者工作台复验](docs/creator-workspace-acceptance.md)。
 
 ## 本机模型与可选联调
 

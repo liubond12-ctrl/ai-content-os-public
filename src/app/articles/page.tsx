@@ -47,7 +47,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   }
   const select=(name:string,label:string,choices:readonly string[])=><label>{label}<select name={name} defaultValue={params.get(name)||""}><option value="">全部</option>{choices.map(s=><option key={s} value={s}>{name==="destination"&&s==="未记录"?"尚未登记发布":s}</option>)}</select></label>;
   const filterCount=["samples","history","account","platform","kind","status","destination","from","to","series","tag","favorite"].filter(key=>params.get(key)).length;
-  return <main className="dashboard content-index"><header className="mast"><h1>写稿与精修</h1><Link href={url({archived:archived?"0":"1",page:"1"})}>{archived?"返回当前内容":"查看归档"}</Link></header>
+  return <main className="dashboard content-index"><header className="mast"><h1>{params.get("status")==="需求草稿"?"需求草稿":"历史文章"}</h1><Link href={url({archived:archived?"0":"1",page:"1"})}>{archived?"返回当前内容":"查看归档"}</Link></header>
   <form action="/articles" className="production content-filters"><input type="hidden" name="archived" value={archived?"1":"0"}/>
   <div className="content-search-row"><label><span className="article-sr-only">搜索稿件</span><input name="q" type="search" defaultValue={params.get("q")||""} placeholder="搜索选题、标题或正文"/></label><button>查找</button></div>
   <details><summary>筛选条件{filterCount>0&&` · 已选 ${filterCount} 项`}</summary><div className="content-filter-grid"><label>账号<select name="account" defaultValue={params.get("account")||""}><option value="">全部</option>{accounts.map(a=><option key={String(a.account)} value={String(a.account)}>{String(a.name||a.account)}</option>)}</select></label>

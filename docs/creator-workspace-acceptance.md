@@ -5,7 +5,9 @@
 | 入口 | 常用操作 |
 | --- | --- |
 | 今日待办 | 待审稿件、待发布成品、待填发布表现、可升级规则、最近编辑 |
-| 写稿与精修 | 单篇、批量和自由文章，今日热点、找稿、精修、配图、分发与进度 |
+| 写稿与精修 | 单篇、批量和自由文章，精修、配图与分发 |
+| 历史文章 | 文章清单、需求草稿、任务搜索、历史批次与队列 |
+| 热点与巡航 | 今日热点、巡航筛选结果及早报 |
 | 账号与素材 | 账号、写作规范、质量标准、素材、飞书资料和发布复盘 |
 | 系统机房 | 运行检查、内容检查效果、巡航与费用、资料使用、提案存档、模型分工、飞书通知、备份与验收 |
 
@@ -44,3 +46,16 @@ node scripts/start-production.mjs --demo
 ```
 
 关闭终端后，用同一环境和同一数据目录重新运行启动命令可保留演练稿。避开同一端口的重复启动。演练只使用本机替身。首次完整复现用新数据目录，按顺序运行 `verify-v1-readiness.mjs`、`verify-phase1-review.mjs`、`verify-sprint2-channels.mjs`、`verify-creator-workspace.mjs`。各脚本在开头列出 URL 和证据目录变量，后一个脚本读取前三个脚本写入的 JSON。复现脚本会改动本机演练稿。
+
+
+## 导航与今日概览复验
+
+桌面左栏底部常驻系统机房。手机用顶部工作空间菜单，点击入口后收起，缩短视口时仍可在菜单内继续滚动。首页四卡在桌面横排，在窄屏两列，显示实际计数并沿用原跳转目标。显示设置仍可在首页操作区打开。
+
+可沿用上面的启动方式，将 `STUDIO_NEXT_DIST_DIR` 改为 `.next/navigation-refresh-final`、端口改为 3958（模型端口 3957），并将 `STUDIO_DATA_DIR` 指向 `%LOCALAPPDATA%/AIContentOS/navigation-refresh-final`。使用已有早报、待发成品、复盘和校准样例的隔离 Demo 执行：
+
+```powershell
+$env:STUDIO_NAV_URL = 'http://127.0.0.1:3958'
+$env:STUDIO_NAV_EVIDENCE = Join-Path $env:TEMP 'navigation-refresh-final'
+node scripts/verify-navigation-refresh.mjs
+```

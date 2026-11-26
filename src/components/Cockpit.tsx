@@ -59,7 +59,15 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
   },[]);
   return <main className="cockpit-home">
     <CockpitOcean visible={visible} paused={paused} strength={strength} />
-    <header className="ck-header"><h1>今日待办</h1><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建稿件</Link></div></header>
+    <header className="ck-header"><h1>今日待办</h1>
+      <div className="ck-header-actions"><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建稿件</Link></div>
+        <details className="ck-settings"><summary>显示设置</summary><div>
+      <label><input type="checkbox" checked={visible} onChange={e=>setVisible(e.target.checked)} /> 显示背景海洋</label>
+      <label><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)} /> 静态阅读模式</label>
+      <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
+    </div></details>
+      </div>
+    </header>
     <DailyDesk/>
     {error && <p role="status">{error}</p>}
     {data.todos.length>0&&<section className="ck-work ck-todos" id="home-todos" tabIndex={-1}><RestoreArticlePosition prefix="todo-" fallback="home-todos"/><div className="ck-section-head"><h2>待我处理 {data.todoCount>0&&<small>{data.todoCount}</small>}</h2>
@@ -88,13 +96,6 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
     <details className="ck-flow" id="home-flow" tabIndex={-1}><summary>查看稿件进度</summary>
       <RestoreArticlePosition prefix="home-flow" fallback="home-flow"/><WorkflowMap tasks={data.active} workerOnline={data.workerOnline} source="/#home-flow"/>
     </details>
-    <footer className="ck-footer"><Link href="/production/tasks">全部任务与搜索 →</Link>
-      <div><Link href="/articles">历史文章</Link><Link href="/production/queue">历史批次与队列操作</Link><Link href="/articles?status=需求草稿">需求草稿</Link></div>
-    </footer>
-    <details className="ck-settings"><summary>显示设置</summary><div>
-      <label><input type="checkbox" checked={visible} onChange={e=>setVisible(e.target.checked)} /> 显示背景海洋</label>
-      <label><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)} /> 静态阅读模式</label>
-      <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
-    </div></details>
+
   </main>;
 }
