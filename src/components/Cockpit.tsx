@@ -8,6 +8,7 @@ import { taskGuidance } from "@/studio/task-guidance";
 import { WorkflowMap } from "./WorkflowMap";
 import { Icon } from "./WorkspaceIcon";
 import CockpitOcean from "./CockpitOcean";
+import {useAppearance} from "./AppearanceProvider";
 import "./cockpit.css";
 
 function taskHref(task:WorkTask,source?:string){
@@ -37,9 +38,7 @@ import {DailyDesk} from "./ReadinessWorkspace";
 export default function Cockpit({ initial }: { initial: WorkOverview }) {
   const [data,setData] = useState(initial);
   const [error,setError] = useState("");
-  const [paused,setPaused] = useState(false);
-  const [visible,setVisible] = useState(false);
-  const [strength,setStrength] = useState(.4);
+  const {preferences,theme}=useAppearance();
   useEffect(() => {
     const controller = new AbortController();
     let pending = false;
@@ -58,15 +57,9 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
     return () => { controller.abort(); clearInterval(timer); };
   },[]);
   return <main className="cockpit-home">
-    <CockpitOcean visible={visible} paused={paused} strength={strength} />
+    <CockpitOcean {...preferences} theme={theme}/>
     <header className="ck-header"><h1>今日待办</h1>
-      <div className="ck-header-actions"><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建稿件</Link></div>
-        <details className="ck-settings"><summary>显示设置</summary><div>
-      <label><input type="checkbox" checked={visible} onChange={e=>setVisible(e.target.checked)} /> 显示背景海洋</label>
-      <label><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)} /> 静态阅读模式</label>
-      <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
-    </div></details>
-      </div>
+      <div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建稿件</Link></div>
     </header>
     <DailyDesk/>
     {error && <p role="status">{error}</p>}

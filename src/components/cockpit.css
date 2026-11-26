@@ -8,13 +8,7 @@
 .ck-ocean {position:fixed;inset:0 0 0 var(--workspace-rail-width);width:calc(100% - var(--workspace-rail-width));height:100%;pointer-events:none;z-index:-1}
 .ck-ocean[hidden] {display:none}
 .cockpit-home {font-size:16px}
-.ck-settings {position:relative;width:fit-content;color:var(--ck-muted)}
-.ck-settings summary,.ck-flow summary {cursor:pointer}
-.ck-settings summary {font-size:14px;line-height:40px;list-style:none}
-.ck-settings>div {width:min(244px,100%);background:var(--surface);border-radius:16px;border:1px solid var(--ck-line);padding:16px}
-.ck-settings label {display:flex;gap:10px;align-items:center;min-height:40px}
-.ck-settings input[type=checkbox]{width:17px;height:17px}
-.ck-settings input[type=range]{width:100px}
+.ck-flow summary {cursor:pointer}
 .ck-header,.ck-section-head,.ck-row,.ck-empty {display:flex;align-items:center;justify-content:space-between;gap:16px}
 .ck-shortcuts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.desk .ck-hot{display:inline-flex;gap:8px;align-items:center;padding:9px 16px;min-height:44px;border:1px solid #829d9c;border-radius:8px;color:#154a47;background:#ebf4f1;font-weight:650}
 .ck-header {margin:24px 0 32px}
@@ -62,12 +56,10 @@
 }
 
 /* The legacy form/detail defaults must not turn the home toolbar into a card. */
-.desk .content main.cockpit-home .ck-settings,
 .desk .content main.cockpit-home>.ck-flow {
   background:transparent;border:0;border-radius:0;padding:0;margin:0;
 }
 .desk .content main.cockpit-home>.ck-flow {margin-top:32px}
-.desk .content main.cockpit-home .ck-settings>summary {padding:0;min-height:40px;font-weight:400}
 .desk .content main.cockpit-home>.ck-flow>summary {padding:0;min-height:40px}
 .desk .content main.cockpit-home>.ck-header {margin-bottom:32px}
 .desk .content main.cockpit-home>.ck-header h1 {margin:0}
@@ -110,10 +102,4 @@
   .desk .ck-recent-item { grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
   .ck-recent-item .ck-icon { display: none; }
   .ck-recent-item .ck-secondary { font-size: 13px; }
-}
-
-.ck-header-actions { position:relative; display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
-.ck-header-actions .ck-settings { position:static; }
-.ck-header-actions .ck-settings > div {
-  position:absolute; inset-inline-end:0; inset-block-start:100%; z-index:2; width:min(244px,100%);
 }

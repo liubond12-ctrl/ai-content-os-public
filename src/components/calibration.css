@@ -16,7 +16,5 @@
 .calibration-page .cal-pass,.calibration-page .cal-block{font-size:.76em;white-space:nowrap;border:1px solid currentColor;border-radius:5px;padding:2px 6px}
 .calibration-page .cal-pass{color:#226452}
 .calibration-page .cal-block{color:#9c321e}
-@media(prefers-color-scheme:dark){
-  .calibration-page .cal-pass{color:#8ad5bf}
-  .calibration-page .cal-block{color:#ffad97}
-}
+:root[data-workbench-theme="dark"] .calibration-page .cal-pass{color:#8ad5bf}
+:root[data-workbench-theme="dark"] .calibration-page .cal-block{color:#ffad97}

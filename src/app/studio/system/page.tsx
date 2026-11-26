@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 const tools=[
+  {title:"显示设置",description:"调整主题和首页背景。",href:"/studio/system/display"},
   {title:"检查运行状态",description:"检查模型、资料检索和飞书是否可用。",href:"/studio/settings/doctor"},
   {title:"查看治理效果",description:"用离线样本比较事实核验、账号规范和各平台用词检查。",href:"/studio/settings/governance"},
   {title:"巡航费用与暂停上限",description:"查看当天估算费用、预算上限和暂停状态。",href:"/studio/system/cruise"},

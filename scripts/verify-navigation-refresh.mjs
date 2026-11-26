@@ -113,11 +113,7 @@ try{
       await page.goto(base);
       await overview.getByRole("link").last().waitFor();
     }
-    await page.getByText("显示设置",{exact:true}).click();
-    await page.getByLabel("静态阅读模式",{exact:true}).check();
-    assert(await page.getByLabel("静态阅读模式",{exact:true}).isChecked());
-    await screenshot("display-settings");
-    await page.getByText("显示设置",{exact:true}).click();
+    assert.equal(await page.getByText("显示设置",{exact:true}).count(),0);
     await page.getByText("查看稿件进度",{exact:true}).scrollIntoViewIfNeeded();
     assert(await hit(page.getByText("查看稿件进度",{exact:true})));
     assert(await page.evaluate(()=>scrollY>100));
@@ -131,6 +127,13 @@ try{
     await page.getByRole("link",{name:/巡航费用与暂停上限/}).click();
     await page.getByLabel("每日估算上限（元）").waitFor();
     await screenshot("budget");
+    await openMenu();
+    await room.click();
+    await page.getByRole("link",{name:/显示设置/}).click();
+    await page.getByLabel("静态阅读模式",{exact:true}).check();
+    await page.reload();
+    assert(await page.getByLabel("静态阅读模式",{exact:true}).isChecked());
+    await screenshot("display-settings");
     const operatorLinks=[
       {name:/检查运行状态/,path:"/studio/settings/doctor",target:()=>page.getByRole("button",{name:"运行本机探活"})},
       {name:/查看治理效果/,path:"/studio/settings/governance",target:()=>page.getByRole("heading",{name:"事实幻觉拦截"})},

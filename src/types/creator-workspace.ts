@@ -21,3 +21,7 @@ export type PendingDismissal = {
   key: string;
   deadline: number;
 };
+export type WorkbenchTheme = "system" | "light" | "dark";
+export type ResolvedWorkbenchTheme = Exclude<WorkbenchTheme,"system">;
+export type OceanPreferences = {visible:boolean;paused:boolean;strength:number};
+export type WorkbenchAppearance = OceanPreferences & {theme:WorkbenchTheme};
