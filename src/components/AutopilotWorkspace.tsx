@@ -79,7 +79,7 @@ export function AutopilotWorkspace(){
       </form>
       {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
     </section>
-    <section className="surface" aria-labelledby="cruise-cost"><h2 id="cruise-cost">画像初筛与每日费用</h2>
+    <details className="surface" id="cruise-cost"><summary>查看巡航费用与选题记录</summary>
       <form onSubmit={e=>{e.preventDefault();void post({action:"automation",policy:costs});}}>
         <div className="cruise-fields"><label>画像最低分<input required type="number" min={0} max={100} value={costs.matchMin}
           onChange={e=>setAutomation({...costs,matchMin:e.target.valueAsNumber})}/></label>
@@ -90,7 +90,7 @@ export function AutopilotWorkspace(){
       {data?.budget&&<p role="status">已估算 {(data.budget.spent/1e6).toFixed(4)} 元 · 在途及待核 {(data.budget.pending/1e6).toFixed(4)} 元 ·
         {data.budget.paused?" 已暂停":data.budget.light?" 非关键调用已切轻量":" 正常"}（北京时间）</p>}
       {!!data?.screens.length&&<details><summary>查看画像初筛记录</summary><ul>{data.screens.map((item,index)=><li key={index}>{item.title} · {item.score===null?"未完成，等待核对":item.score+" 分"}</li>)}</ul></details>}
-    </section>
+    </details>
 
     <section className="surface" aria-labelledby="cruise-morning"><header className="cruise-section-head">
       <h2 id="cruise-morning">飞书早报预览</h2><label>查看日期<input type="date" value={day||data?.day||""} onChange={event=>setDay(event.target.value)}/></label>

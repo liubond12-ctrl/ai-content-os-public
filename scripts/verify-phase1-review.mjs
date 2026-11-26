@@ -38,7 +38,7 @@ async function until(fn){
 const account=await productionPost({action:"entity",kind:"account",value:{id:"phase1-"+randomUUID(),name:"会诊虚构样例账号",status:"启用",platform:"小红书",version:0}});
 async function seed(topic){
   const draft=await productionPost({action:"draft",value:{
-    id:randomUUID(),version:0,account:account.id,platform:"小红书",topic,kind:"图文",goal:"品宣",budgetProfile:"local_extended",
+    id:randomUUID(),version:0,account:account.id,platform:"小红书",topic,kind:"图文",goal:"品宣",budgetProfile:"local_extended",experiment:"离线复验重复使用已获准的虚构选题",
     brief:{note:"以虚构校样为背景，面向练习写作的读者，用一组动作演示如何精修句子。",adjust:{},materials:[],articleRefs:[],failed:[]}
   }});
   const preview=await productionPost({action:"preview",drafts:[draft]});
@@ -86,7 +86,7 @@ try{
  await page.goto(report.url);
  const consultation=page.locator(".review-consultation");
  await consultation.waitFor({timeout:20000});
- const groups=consultation.locator(".consult-conflict");
+ const groups=consultation.locator(".creator-collapse[data-collapsed=false] .consult-conflict");
  assert.equal(await groups.count(),2);
  const score=consultation.locator(".consult-score");
  const initialScore=Number((await score.innerText()).match(/\d+/)[0]);
@@ -102,6 +102,7 @@ try{
  await page.screenshot({path:evidence+"/01-consultation-desktop.png"});
  assert.equal(await first.locator(".consult-options").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length),2);
  const discussion=consultation.locator(".consult-discussion");
+ if(await discussion.getAttribute("open")===null)await discussion.locator("summary").click();
  assert.equal(await discussion.locator("li").count(),3);
  await discussion.getByRole("button",{name:/展开全部/}).click();
  assert.equal(await discussion.locator("li").count(),4);
@@ -109,27 +110,33 @@ try{
  assert(!(await discussion.innerText()).includes("赞同"));
  const replacement=await option.locator(".consult-option-text").innerText();
  await writeDraft(id,beforeConflict,formatted);
- await option.getByRole("button",{name:"采纳此方案替换"}).click();
+ await option.getByRole("button",{name:"替换原文"}).click();
  await consultation.getByRole("alert").filter({hasText:"其他窗口"}).waitFor();
  assert.equal((await article(id)).draft.reviewEdits.length,0);
  assert(await page.locator(".article-body").innerText().then(text=>text.includes("蓝笔落在了桌上。")));
  await page.reload();
- await option.getByRole("button",{name:"采纳此方案替换"}).click();
- await first.getByText("已处理",{exact:true}).waitFor();
+ await option.getByRole("button",{name:"替换原文"}).click();
+ await consultation.getByText(/查看已处理的分歧/).waitFor();
+ await consultation.locator(".creator-collapse[data-collapsed=true]").filter({hasText:"蓝笔落在了桌上。"}).waitFor({state:"hidden"});
  await second.getByRole("button",{name:"自定义合并"}).click();
  await second.getByRole("textbox").fill("她把校样转向灯下，将那一行重新读了一遍。");
- await second.getByRole("button",{name:"应用合并"}).click();
- await second.getByText("已处理",{exact:true}).waitFor();
+ await second.getByRole("button",{name:"替换为合并文字"}).click();
+ await consultation.getByText("查看已处理的分歧 · 2 处",{exact:true}).waitFor();
  const revisedBefore=await article(id);
  assert.equal(revisedBefore.draft.reviewEdits.length,2);
  const editedBlock=revisedBefore.draft.document.find(b=>b.children.some(n=>n.text.includes(replacement)));
  assert.equal(editedBlock.type,"blockquote");
  assert.deepEqual(editedBlock.children[0],blueBlock.children[0]);
  assert(!editedBlock.children.find(leaf=>leaf.text.includes(replacement)).bold);
+ if(await consultation.locator(".consult-overview").getAttribute("open")===null)await consultation.locator(".consult-overview summary").click();
  const finalScore=Number((await score.innerText()).match(/\d+/)[0]);assert(finalScore>initialScore);
  await page.reload();
- await first.getByText("已处理",{exact:true}).waitFor();
- await second.getByText("已处理",{exact:true}).waitFor();
+ await consultation.getByText(/查看已处理的分歧/).waitFor();
+ await consultation.locator(".creator-collapse[data-collapsed=true]").filter({hasText:"蓝笔落在了桌上。"}).waitFor({state:"hidden"});
+ await consultation.getByText("查看已处理的分歧 · 2 处",{exact:true}).waitFor();
+ if(await consultation.locator(".consult-overview").getAttribute("open")===null)await consultation.locator(".consult-overview summary").click();
+ const experts=consultation.locator(".consult-experts");
+ if(await experts.getAttribute("open")===null)await experts.locator("summary").click();
  let rewrite=consultation.getByRole("button",{name:"一键改写"});
  if(!await rewrite.isVisible())await consultation.locator('[data-role="strategy"] > .consult-expert-toggle').click();
  const generated=page.waitForResponse(response=>response.url()===base+"/api/articles"&&response.request().method()==="POST"&&response.request().postDataJSON().action==="generate-edit");
@@ -139,7 +146,8 @@ try{
  assert.deepEqual(await generatedResponse.json(),{text:"她把纸角压平，指尖沿着折痕缓慢滑过。"});
  await consultation.getByText("已修改",{exact:true}).waitFor();
  await page.getByRole("button",{name:"一键生成并插入"}).click();
- await page.getByText("已插入正文",{exact:true}).waitFor();
+ await page.getByText("查看已处理的建议",{exact:true}).click();
+ await page.getByText(/已插入正文$/).waitFor();
  const version=await article(id),body=version.draft.document.map(b=>b.children.map(n=>n.text).join("")).join("\n");
  assert(body.includes(replacement));
  assert(body.includes("她把校样转向灯下，将那一行重新读了一遍。"));
@@ -149,12 +157,15 @@ try{
  assert(body.indexOf(added)<body.indexOf("## 配图计划"));
  assert.equal(version.head.version,revisedBefore.head.version);
  assert.notEqual(version.head.confirmed,true);
- await page.reload();await page.getByText("已插入正文",{exact:true}).waitFor();
+ await page.reload();await page.getByText("查看已处理的建议",{exact:true}).click();
+ await page.getByText(/已插入正文$/).waitFor();
  assert.equal(await page.getByRole("button",{name:"一键生成并插入"}).count(),0);
  assert.deepEqual((await article(id)).draft,version.draft);
  await page.setViewportSize({width:390,height:844});
- await first.scrollIntoViewIfNeeded();
- assert.equal(await first.locator(".consult-options").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length),1);
+ await consultation.getByText("查看已处理的分歧 · 2 处",{exact:true}).click();
+ const handled=consultation.locator("details .consult-conflict").filter({hasText:"蓝笔落在了桌上。"});
+ await handled.scrollIntoViewIfNeeded();
+ assert.equal(await handled.locator(".consult-options").evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length),1);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:evidence+"/02-consultation-390.png"});
  report.checks.push({id,version:version.head.version,opening,initialScore,finalScore,expanded:4,operations:version.draft.reviewEdits.length,endingInsertedOnce:true,formatPreserved:true,staleSaveRejected:true});

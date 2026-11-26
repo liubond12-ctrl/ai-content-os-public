@@ -5,7 +5,7 @@ import {isLocalArticleWrite} from "@/studio/local-article-request";
 import {openContent} from "@/studio/content-index";
 import {entities,productionDb} from "@/studio/production-db";
 import {appendRetro,applyProposal,calibrationTables,createProposal,getPrediction,getPublication,getRetros,lockPrediction,
-  proposals,registerPublication,samplePool,taskAccount,effectiveDue} from "@/studio/calibration";
+  mergeableProposals,proposals,registerPublication,samplePool,taskAccount,effectiveDue} from "@/studio/calibration";
 import {extractArticleBrick,extractReferenceBrick,searchBricks} from "@/studio/atomic-bricks";
 import {dryRunRoutes} from "@/studio/model-routing";
 import {seedCalibrationDemo} from "@/studio/calibration-demo";
@@ -51,6 +51,7 @@ export async function GET(request:Request){
       const pool=samplePool(db,scope);
       return send({demo:demo(),accounts:entities(db,"account").filter(row=>row.status==="启用").map(row=>({id:row.id,name:row.name})),
         stage:pool.length>=5?"calibration":"cold-start",count:pool.length,proposals:proposals(db,scope),
+        actionable:mergeableProposals(db,scope).map(row=>row.id),
         items:db.prepare("SELECT task,version,payload FROM cal_predictions WHERE account=? ORDER BY rowid DESC LIMIT 80").all(scope)
           .map(row=>{const key={task:String(row.task),version:Number(row.version)},view=versionView(db,key);
             const {body:ignored,...prediction}=view.prediction!;void ignored;

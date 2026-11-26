@@ -1,12 +1,16 @@
 "use client";
 import Link from "next/link";
 import {useEffect,useRef,useState} from "react";
+import type {PendingDismissal} from "@/types/creator-workspace";
 import {editorHref} from "@/studio/article-navigation";
 
 type Record={brief:{note:string;goal:string;audience:string;materials:{id:string;name:string;source:string;purpose:string}[];references:string[];articles:{id:string;version:number;title:string}[]};suggestions:{key:string;label:string;state:string}[];notes:{body:string;created:string}[]};
 export function TaskBriefNotes({taskId,onGenerateEnding,endingInserted=false}:{taskId:string;onGenerateEnding?:()=>Promise<void>;endingInserted?:boolean}){
   const [data,setData]=useState<Record|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false),[note,setNote]=useState("");
   const [generating,setGenerating]=useState(false);
+  const [pending,setPending]=useState<PendingDismissal|null>(null),[notice,setNotice]=useState("");
+  const dismissTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  useEffect(()=>()=>clearTimeout(dismissTimer.current),[taskId]);
   const noteId=useRef<string|undefined>(undefined),lock=useRef(false);
   useEffect(()=>{
     const controller=new AbortController();
@@ -14,7 +18,7 @@ export function TaskBriefNotes({taskId,onGenerateEnding,endingInserted=false}:{t
     return()=>controller.abort();
   },[taskId]);
   async function update(body:object){
-    if(lock.current)return false;
+    if(lock.current){setError("还有一项正在保存，请稍后重试。");return false;}
     lock.current=true;setBusy(true);setError("");
     try{
       const response=await fetch("/api/production/brief",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task:taskId,...body})});
@@ -24,22 +28,38 @@ export function TaskBriefNotes({taskId,onGenerateEnding,endingInserted=false}:{t
       setData(await read.json());return true;
     }catch(e){setError(String(e));return false;}finally{lock.current=false;setBusy(false);}
   }
+  function dismiss(key:string){
+    if(pending)return;
+    setNotice("");setPending({key,deadline:Date.now()+5000});
+    dismissTimer.current=setTimeout(async()=>{
+      const saved=await update({action:"suggestion",key,state:"skipped"});
+      setPending(null);
+      if(saved)setNotice("已忽略建议");
+    },5000);
+  }
+  function undoDismissal(){
+    if(!pending||Date.now()>=pending.deadline)return;
+    clearTimeout(dismissTimer.current);
+    setPending(null);setNotice("已撤销忽略");
+  }
   if(!data)return error?<p role="status">{error}</p>:null;
   const {brief,suggestions,notes}=data;
   return <section className="task-brief-notes" aria-label="本篇补充与资料">
-    <h2>本篇补充</h2>
-    {suggestions.filter(s=>s.state!=="skipped").map(s=><div className="task-brief-suggestion" key={s.key}>
+    {(suggestions.some(s=>s.state==="pending")||notes.length>0)&&<h2>本篇补充</h2>}
+    {suggestions.filter(s=>s.state==="pending"&&!(s.key==="ending"&&endingInserted)).map(s=><div className="creator-collapse" key={s.key} data-collapsed={pending?.key===s.key} inert={pending?.key===s.key}><div className="creator-collapse-inner"><div className="task-brief-suggestion">
       <span>{s.label}</span>{s.key==="ending"&&onGenerateEnding?<div className="actions">
         {endingInserted?<strong role="status">已插入正文</strong>:<button type="button" disabled={busy||generating} onClick={async()=>{
           setGenerating(true);setError("");
           try{await onGenerateEnding();}
           catch(e){setError(e instanceof Error?e.message:String(e));}finally{setGenerating(false);}
         }}>{generating?"正在生成…":"一键生成并插入"}</button>}
-        {s.state==="pending"&&!endingInserted&&<button type="button" disabled={busy||generating} onClick={()=>void update({action:"suggestion",key:s.key,state:"skipped"})}>× 跳过</button>}
+        {s.state==="pending"&&!endingInserted&&<button type="button" disabled={busy||generating||!!pending} onClick={()=>dismiss(s.key)}>忽略建议</button>}
       </div>:s.state==="added"?<strong>已加入本篇修改清单</strong>:<div className="actions">
-        <button type="button" disabled={busy} onClick={()=>void update({action:"suggestion",key:s.key,state:"added"})}>✓ 加上</button>
-        <button type="button" disabled={busy} onClick={()=>void update({action:"suggestion",key:s.key,state:"skipped"})}>× 跳过</button>
-      </div>}</div>)}
+        <button type="button" disabled={busy} onClick={()=>void update({action:"suggestion",key:s.key,state:"added"})}>加入修改清单</button>
+        <button type="button" disabled={busy||!!pending} onClick={()=>dismiss(s.key)}>忽略建议</button>
+      </div>}</div></div></div>)}
+    {pending?<div className="creator-undo"><span role="status">将忽略这条建议</span><button type="button" onClick={undoDismissal}>撤销忽略</button></div>:notice&&<p role="status">{notice}</p>}
+    {suggestions.some(s=>s.state!=="pending"||s.key==="ending"&&endingInserted)&&<details><summary>查看已处理的建议</summary><ul>{suggestions.filter(s=>s.state!=="pending"||s.key==="ending"&&endingInserted).map(s=><li key={s.key}>{s.label} · {s.key==="ending"&&endingInserted?"已插入正文":s.state==="added"?"已加入修改清单":"已忽略"}</li>)}</ul></details>}
     {notes.map((n,i)=><p key={n.created+":"+i}>{n.body}</p>)}
     <details><summary>补一句或查看资料来源</summary>
       <label>给这篇加一条修改备注<input maxLength={600} value={note} onChange={e=>{noteId.current=undefined;setNote(e.target.value);}}/></label>

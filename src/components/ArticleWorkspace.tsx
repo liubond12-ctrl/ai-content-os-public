@@ -1,4 +1,5 @@
 "use client";
+import type {ReviewAttention,SavedPassage} from "@/types/creator-workspace";
 import {TaskBriefNotes} from "./TaskBriefNotes";
 import Link from "next/link";
 import {editorHref,reviewHref} from "@/studio/article-navigation";
@@ -64,6 +65,9 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
   const [kind,setKind]=useState("case");
   const [auditOpen,setAuditOpen]=useState(()=>new URLSearchParams(location.search).has("review"));
   const auditJump=useRef(false);
+  const [attention,setAttention]=useState<{version:number;kind:ReviewAttention}>();
+  const [savedPassage,setSavedPassage]=useState<SavedPassage>();
+  const prompted=useRef(new Set<number>());
   const reviewPanel=useRef<HTMLElement>(null);
   useEffect(()=>{
     const panel=reviewPanel.current;
@@ -205,17 +209,21 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
       const edit=await create();
       if(JSON.stringify(current.current)!==JSON.stringify(snapshot))throw Error("正文已变化，生成结果未写入。");
       const next=structuredClone(snapshot);
+      let passage:SavedPassage|undefined;
       if(edit.kind==="replace"){
         const {anchor,text}=edit;
         if(/[\r\n]/.test(text))throw Error("请使用单行替换，跨段修改请在正文编辑器中完成。");
         const offset=liveOffset(anchor,snapshot);
         if(offset===null)throw Error("原句已变化，请定位后在正文修改。");
+        passage={field:anchor.field,offset,quote:text,previous:anchor.quote};
         if(anchor.field==="title"){
           next.title=next.title.slice(0,offset)+text+next.title.slice(offset+anchor.quote.length);
         }else{
           const range=quoteRange(next.document,anchor.quote,offset);
           if(!range||range.anchor.path[0]!==range.focus.path[0])throw Error("建议跨越多个段落，请在正文修改。");
           const [block,start]=range.anchor.path,end=range.focus.path[1];
+          const element=window.document.querySelector('[aria-label="文章正文"]')?.children[block];
+          passage={...passage,block,height:element?.getBoundingClientRect().height,previous:plainText([snapshot.document[block]])};
           const leaves=next.document[block].children;
           const first=leaves[start],last=leaves[end];
           if(start===end){
@@ -238,12 +246,12 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
         const result=await request({action:"draft",taskId,revision:stateBefore.draft?.revision??0,baseVersion:stateBefore.head.version,reviewEdit:id,...next});
         install(result);current.current=next;setTitle(next.title);setDocument(next.document);
         saved.current=JSON.stringify(next);setSavedSerial(saved.current);setEditorKey(key=>key+1);
-        setLocating(null);stopped.current=false;setStatus("已保存修改");
+        setLocating(null);setSavedPassage(passage);stopped.current=false;setStatus("已保存修改");
       }
     }finally{flight.current=false;setBusy(false);}
   }
   function locate(issue:{field:"title"|"body";quote:string;offset:number}){
-    setLocating(null);setNotice("");
+    setLocating(null);setSavedPassage(undefined);setNotice("");
     if(version[issue.field].slice(issue.offset,issue.offset+issue.quote.length)!==issue.quote){setNotice("引用无法与此版本精确匹配，未高亮。");return;}
     const liveAt=selected===state.head.version?liveOffset(issue,current.current):issue.offset;
     if(liveAt===null){setNotice("当前草稿中的原句无法唯一定位，可在审核记录查看原文。");return;}
@@ -313,7 +321,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
       <div className="article-actions">
         <span role="status">{unsaved&&status==="已保存"?"等待自动保存…":status}</span>
         <button type="button" aria-controls="article-audit" aria-expanded={auditOpen} onClick={openAudit}>查看审核</button>
-        <ChannelDistribution key={version.version} taskId={taskId} version={version.version} dirtyMother={stale}/>
+        <ChannelDistribution mother={version} key={version.version} taskId={taskId} version={version.version} dirtyMother={stale}/>
     {error&&unsaved&&<button onClick={()=>void saveDraft()} disabled={busy}>重试保存草稿</button>}
     {(!version.confirmed||stale)&&<button onClick={()=>void formal("publish")} disabled={busy||selected!==state.head.version||status==="保存中…"}>确认定稿</button>}
       </div>
@@ -325,7 +333,7 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
           <button type="button" onClick={()=>locate(check)}>定位并改写</button>
         </div>)}
       </section>}
-      {selected===state.head.version?<><BodyEditor key={editorKey} initial={document} disabled={busy} onChange={d=>{setDocument(d);setLocating(null);}} locate={locating?.field==="body"?locating:null}/></>:
+      {selected===state.head.version?<><BodyEditor key={editorKey} initial={document} disabled={busy} onChange={d=>{setDocument(d);setLocating(null);setSavedPassage(undefined);}} savedPassage={savedPassage} locate={locating?.field==="body"?locating:null}/></>:
         <article><h2>{marked("title")}</h2><pre className="article-history">{marked("body")}</pre><button onClick={()=>void formal("restore")} disabled={busy||status==="保存中…"}>恢复此版本为新版本</button></article>}
       {notice&&<p role="status">{notice}</p>}
     </section>
@@ -376,17 +384,20 @@ function EditingSession({initial,taskId,returnTo}:{initial:ArticleState;taskId:s
     <TaskBriefNotes taskId={taskId} endingInserted={state.head.endingInserted||state.draft?.baseVersion===selected&&state.draft.reviewEdits?.includes(endingEditId)} onGenerateEnding={selected===state.head.version?()=>applyEdit(endingEditId,async()=>({
       kind:"append",text:await generate({kind:"ending"}),
     })):undefined}/>
-    </div><aside className="editor-review-panel" ref={reviewPanel}><details id="article-audit" open={auditOpen} onToggle={e=>setAuditOpen(e.currentTarget.open)}><summary>查看审核与修改建议</summary>{auditOpen&&<ArticleReview key={taskId+":"+version.version} taskId={taskId} version={version.version} stale={stale} article={version}
+    </div><aside className="editor-review-panel" ref={reviewPanel}><details id="article-audit" open={auditOpen} onToggle={e=>setAuditOpen(e.currentTarget.open)}><summary className="review-capsule" data-attention={attention?.version===version.version?attention.kind:"normal"}>{attention?.version===version.version&&attention.kind!=="normal"?(attention.kind==="risk"?"有内容待核对":attention.kind==="conflict"?"有不同修改意见":"常规检查已完成 · 查看建议"):"查看审核与修改建议"}</summary><ArticleReview key={taskId+":"+version.version} taskId={taskId} version={version.version} stale={stale} article={version}
       authorView={{versions:state.versions,
         resolved:state.draft?.baseVersion===selected?state.draft.reviewEdits:undefined,
         onEdit:selected===state.head.version?(id,anchor,text)=>applyEdit(id,async()=>({kind:"replace",anchor,text})):undefined,
         onRewrite:selected===state.head.version?(id,anchor,suggestion)=>applyEdit(id,async()=>({kind:"replace",anchor,text:await generate({kind:"rewrite",anchor,suggestion})})):undefined,
-        detailHref:reviewHref(taskId,returnTo),returnToBody,onReady:revealLoadedAudit,unmapped:locating&&stale&&(locating.field==="title"?title:plainText(document)).slice(locating.offset,locating.offset+locating.quote.length)!==locating.quote?locating:undefined,onLocateVersion:(v,i)=>{if(v===version.version)locate(i);else{selectVersion(v);setLocating(i);}}}}
+        detailHref:reviewHref(taskId,returnTo),returnToBody,onReady:revealLoadedAudit,onAttention:kind=>{
+          setAttention(previous=>previous?.version===version.version&&previous.kind===kind?previous:{version:version.version,kind});
+          if((kind==="risk"||kind==="conflict")&&!prompted.current.has(version.version)){prompted.current.add(version.version);setAuditOpen(true);}
+        },unmapped:locating&&stale&&(locating.field==="title"?title:plainText(document)).slice(locating.offset,locating.offset+locating.quote.length)!==locating.quote?locating:undefined,onLocateVersion:(v,i)=>{if(v===version.version)locate(i);else{selectVersion(v);setLocating(i);}}}}
       onDecide={selected!==state.head.version?undefined:async(review,issue,quote,replacement,reason)=>{
       try{await request({action:"decide",taskId,baseVersion:selected,revision:state.draft?.revision??0,review,issue,replacement,reason,choice:replacement===quote?"retain":"accept"});const url=new URL(location.href);for(const key of ["version","field","at","length","claim","issue","review"])url.searchParams.delete(key);history.replaceState(null,"",url);location.reload();}catch(e){setError(String(e));}
-    }} onLocate={locate}/>}</details></aside></div>;
+    }} onLocate={locate}/></details></aside></div>;
 }
-function BodyEditor({initial,disabled,onChange,locate}:{initial:ArticleDocument;disabled:boolean;onChange:(d:ArticleDocument)=>void;locate:{quote:string;offset:number}|null}){
+function BodyEditor({initial,disabled,onChange,locate,savedPassage}:{initial:ArticleDocument;disabled:boolean;onChange:(d:ArticleDocument)=>void;locate:{quote:string;offset:number}|null;savedPassage?:SavedPassage}){
   const editor=usePlateEditor({plugins,value:initial});
   useEffect(()=>{
     if(!locate)return;
@@ -399,11 +410,37 @@ function BodyEditor({initial,disabled,onChange,locate}:{initial:ArticleDocument;
     });
     return()=>cancelAnimationFrame(frame);
   },[editor,locate]);
+  const body=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(savedPassage?.field!=="body"||!body.current||matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+    let cleanup:(()=>void)|undefined;
+    const frame=requestAnimationFrame(()=>{
+      const container=body.current;
+      if(!container||savedPassage.block===undefined)return;
+      const block=editor.api.toDOMNode(editor.children[savedPassage.block]);
+      if(!block)return;
+      const computed=getComputedStyle(block),ease=computed.getPropertyValue("--creator-ease").trim();
+      const old=document.createElement("div");
+      old.className="creator-old-passage";old.setAttribute("aria-hidden","true");
+      old.textContent=savedPassage.previous;
+      const rect=block.getBoundingClientRect(),origin=container.getBoundingClientRect();
+      Object.assign(old.style,{top:rect.top-origin.top+"px",left:rect.left-origin.left+"px",width:rect.width+"px",
+        height:(savedPassage.height??rect.height)+"px",font:computed.font,lineHeight:computed.lineHeight});
+      container.append(old);
+      const fade=old.animate([{opacity:.8},{opacity:0}],{duration:140,easing:ease});
+      void fade.finished.then(()=>old.remove(),()=>old.remove());
+      const highlight=block.animate([{backgroundColor:computed.getPropertyValue("--creator-saved-glow").trim()},{backgroundColor:"transparent"}],{duration:600,easing:ease});
+      const resize=savedPassage.height&&Math.abs(savedPassage.height-rect.height)>1?block.animate(
+        [{height:savedPassage.height+"px",overflow:"clip"},{height:rect.height+"px",overflow:"clip"}],{duration:220,easing:ease}):undefined;
+      cleanup=()=>{fade.cancel();highlight.cancel();resize?.cancel();old.remove();};
+    });
+    return()=>{cancelAnimationFrame(frame);cleanup?.();};
+  },[editor,savedPassage]);
   return <Plate editor={editor} onValueChange={({value})=>onChange(stabilizeBlocks(clean(value),initial))}>
     <div className="article-toolbar" role="toolbar" aria-label="正文格式">
       {([['p','段落'],['h1','一级标题'],['h2','二级标题'],['li','列表'],['blockquote','引用']] as const).map(([type,label])=><button key={type} disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>{editor.tf.setNodes({type},{match:n=>editor.api.isBlock(n)});editor.tf.focus();}}>{label}</button>)}
       <button disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>{editor.tf.toggleMark("bold");editor.tf.focus();}}>加粗</button>
-    </div><PlateContent className="article-body" aria-label="文章正文" readOnly={disabled} spellCheck={false}/>
+    </div><div className="creator-body-frame" ref={body}><PlateContent className="article-body" aria-label="文章正文" readOnly={disabled} spellCheck={false}/></div>
   </Plate>;
 }
 

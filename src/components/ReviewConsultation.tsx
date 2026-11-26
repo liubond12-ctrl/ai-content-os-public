@@ -1,5 +1,6 @@
 "use client";
 import {useId,useRef,useState} from "react";
+import type {ReviewAttention} from "@/types/creator-workspace";
 import type {MultiAgentReviewVisual,ReviewAnchor,ReviewExpertRole} from "@/types/multi-agent-review";
 import "./review-consultation.css";
 
@@ -12,24 +13,27 @@ function Badge({role}:{role:ReviewExpertRole}){
   return <span className="consult-role" data-role={role}><span aria-hidden="true">{roles[role][0]}</span>{roles[role][1]}</span>;
 }
 
-export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,applied=false}:{
+export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,attention,applied=false}:{
   visual:MultiAgentReviewVisual;
   resolved:ReadonlySet<string>;
   onLocate:(anchor:ReviewAnchor)=>void;
   onEdit?:(id:string,anchor:ReviewAnchor,text:string)=>Promise<void>;
   onRewrite?:(id:string,anchor:ReviewAnchor,suggestion:string)=>Promise<void>;
   applied?:boolean;
+  attention:ReviewAttention;
 }){
   const lowest=visual.experts.toSorted((a,b)=>a.score-b.score)[0]?.role;
   const [expanded,setExpanded]=useState<ReviewExpertRole|null>(lowest??null);
   const accordionId=useId();
   const [merge,setMerge]=useState<{id:string;text:string}|null>(null);
   const [all,setAll]=useState(false);
-  const [showSummary,setShowSummary]=useState(true);
+  const [showSummary,setShowSummary]=useState(attention==="risk"||attention==="conflict");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const total=visual.experts.length?Math.round(visual.experts.reduce((n,e)=>n+e.score,0)/visual.experts.length):null;
   const exchanges=visual.exchanges;
+  const activeConflicts=visual.conflicts.filter(group=>!applied&&!resolved.has(group.id));
+  const archivedConflicts=visual.conflicts.filter(group=>!activeConflicts.includes(group));
   const pendingConflicts=applied?0:visual.conflicts.filter(group=>!resolved.has(group.id)).length;
   const flight=useRef(false);
 
@@ -42,16 +46,37 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
     finally{flight.current=false;setBusy(false);}
   }
 
+  function conflictCard(group:typeof visual.conflicts[number],index:number,resolvedGroup:boolean){
+      const first=group.options[0];
+      if(!first)return null;
+      return <section key={group.id} className="consult-conflict">
+        <div className="consult-conflict-heading"><h4>#{index+1}</h4>{resolvedGroup?<span role="status">已处理</span>:<span>待裁决</span>}</div>
+        <blockquote>{first.anchor.quote}</blockquote>
+        <div className="consult-options">{group.options.map(option=><article key={option.id} data-role={option.role}>
+          <Badge role={option.role}/>
+          <p className="consult-option-text">{option.action==="delete"?"删除原句":option.text}</p>
+          <p>{option.reason}</p>
+          {onEdit&&!resolvedGroup&&<button type="button" disabled={busy} onClick={()=>void apply(()=>onEdit(group.id,option.anchor,option.text))}>{option.action==="retain"?"保留原文":option.action==="delete"?"删除原句":"替换原文"}</button>}
+          <button type="button" onClick={()=>onLocate(option.anchor)}>定位原文</button>
+        </article>)}</div>
+        {group.verdict&&<p><strong>裁决</strong> {group.verdict}</p>}
+        {onEdit&&!resolvedGroup&&merge?.id===group.id?<div className="consult-merge">
+          <label>合并后的文字<textarea rows={3} value={merge.text} onChange={e=>setMerge({...merge,text:e.target.value})}/></label>
+          <button type="button" disabled={busy||!merge.text.trim()} onClick={()=>void apply(()=>onEdit(group.id,first.anchor,merge.text.trim()))}>替换为合并文字</button>
+          <button type="button" onClick={()=>setMerge(null)}>取消</button>
+        </div>:onEdit&&!resolvedGroup&&<button type="button" onClick={()=>setMerge({id:group.id,text:first.anchor.quote})}>自定义合并</button>}
+      </section>;
+  }
   return <div className="review-consultation">
-    <div className="consult-sticky">{total!==null&&<header className="consult-overview">
+    <div className="consult-sticky">{total!==null&&<details className="consult-overview" open={attention==="risk"||attention==="conflict"||undefined}><summary>查看专家检查进度</summary><div className="consult-overview-body">
       <div><h3>会诊总览</h3><p>文章 v{visual.version} · 按本次审核待处理项计算</p></div>
       <strong className="consult-score" data-low={total<65} aria-live="polite"><span>草稿处理进度分</span>{total}<small>/100</small></strong>
-    </header>}
+    </div></details>}
     {visual.summary.length>0&&<section className="consult-summary">
       <button type="button" aria-expanded={showSummary} aria-controls={accordionId+"-summary"} onClick={()=>setShowSummary(value=>!value)}>仲裁摘要</button>
       <div id={accordionId+"-summary"} hidden={!showSummary}>{visual.summary.map(line=><p key={line}>{line}</p>)}</div>
     </section>}</div>
-    {visual.experts.map(expert=><section className="consult-expert" key={expert.role} data-role={expert.role}>
+    <details className="consult-experts disclosure" open={attention==="normal"||attention==="clear"||undefined}><summary>查看每位专家的建议</summary>{visual.experts.map(expert=><section className="consult-expert" key={expert.role} data-role={expert.role}>
       <button type="button" className="consult-expert-toggle" aria-expanded={expanded===expert.role} aria-controls={accordionId+"-"+expert.role}
         onClick={()=>setExpanded(previous=>previous===expert.role?null:expert.role)}><Badge role={expert.role}/><strong className="consult-expert-score" data-low={expert.score<65}>{expert.score}<small>/100</small></strong></button>
       <div id={accordionId+"-"+expert.role} className="consult-expert-content" hidden={expanded!==expert.role}>
@@ -66,35 +91,18 @@ export function ReviewConsultation({visual,resolved,onLocate,onEdit,onRewrite,ap
           </div>
         </article>)}
       </div>
-    </section>)}
+    </section>)}</details>
     {!!visual.conflicts.length&&<section className="consult-conflict-list"><h3>角色分歧 · {pendingConflicts} 处待裁决</h3>
-    {visual.conflicts.map((group,index)=>{
-      const first=group.options[0];
-      if(!first)return null;
-      const resolvedGroup=applied||resolved.has(group.id);
-      return <section key={group.id} className="consult-conflict">
-        <div className="consult-conflict-heading"><h4>#{index+1}</h4>{resolvedGroup?<span role="status">已处理</span>:<span>待裁决</span>}</div>
-        <blockquote>{first.anchor.quote}</blockquote>
-        <div className="consult-options">{group.options.map(option=><article key={option.id} data-role={option.role}>
-          <Badge role={option.role}/>
-          <p className="consult-option-text">{option.action==="delete"?"删除原句":option.text}</p>
-          <p>{option.reason}</p>
-          {onEdit&&!resolvedGroup&&<button type="button" disabled={busy} onClick={()=>void apply(()=>onEdit(group.id,option.anchor,option.text))}>{option.action==="retain"?"保留原文":option.action==="delete"?"采纳并删除原句":"采纳此方案替换"}</button>}
-          <button type="button" onClick={()=>onLocate(option.anchor)}>定位原文</button>
-        </article>)}</div>
-        {group.verdict&&<p><strong>裁决</strong> {group.verdict}</p>}
-        {onEdit&&!resolvedGroup&&merge?.id===group.id?<div className="consult-merge">
-          <label>合并后的文字<textarea rows={3} value={merge.text} onChange={e=>setMerge({...merge,text:e.target.value})}/></label>
-          <button type="button" disabled={busy||!merge.text.trim()} onClick={()=>void apply(()=>onEdit(group.id,first.anchor,merge.text.trim()))}>应用合并</button>
-          <button type="button" onClick={()=>setMerge(null)}>取消</button>
-        </div>:onEdit&&!resolvedGroup&&<button type="button" onClick={()=>setMerge({id:group.id,text:first.anchor.quote})}>自定义合并</button>}
-      </section>;
-    })}</section>}
-    {exchanges.length>0&&<section className="consult-discussion">
-      <h3>专家辩论</h3>
+      {visual.conflicts.map((group,index)=><div key={group.id} className="creator-collapse" data-collapsed={!activeConflicts.includes(group)} inert={!activeConflicts.includes(group)}>
+        <div className="creator-collapse-inner">{conflictCard(group,index,false)}</div></div>)}
+      {!!archivedConflicts.length&&<details><summary>查看已处理的分歧 · {archivedConflicts.length} 处</summary>
+        {archivedConflicts.map(group=>conflictCard(group,visual.conflicts.indexOf(group),true))}</details>}
+    </section>}
+    {exchanges.length>0&&<details className="consult-discussion" open={attention==="conflict"||undefined}>
+      <summary>查看专家讨论</summary>
       <ol>{(all?exchanges:exchanges.slice(0,3)).map(exchange=><li key={exchange.id}><Badge role={exchange.role}/><span className="consult-stance" data-stance={exchange.stance}>{stances[exchange.stance]}</span><p>{exchange.message}</p></li>)}</ol>
       {exchanges.length>3&&<button type="button" aria-expanded={all} onClick={()=>setAll(!all)}>{all?"收起发言":"展开全部 "+exchanges.length+" 条"}</button>}
-    </section>}
+    </details>}
     {busy&&<p role="status">正在处理建议…</p>}
     {error&&<p role="alert">{error}</p>}
   </div>;

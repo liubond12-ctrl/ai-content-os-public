@@ -11,7 +11,7 @@ const metricKeys=Object.keys(keys) as Array<keyof Metrics>;
 const emptyMetrics={reach:0,likes:0,saves:0,comments:0,conversions:0};
 const dateLabel=(date:string)=>new Intl.DateTimeFormat("zh-CN",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Shanghai"}).format(new Date(date));
 type Item=VersionKey & {prediction:Omit<BlindPrediction,"body">;publication:{dueAt:string;publishedAt:string;demoWake:boolean}|null;retro:Retro[];due:boolean};
-type Snapshot={demo:boolean;accounts:{id:string;name:string}[];stage:string;count:number;items:Item[];proposals:RubricBumpProposal[];
+type Snapshot={demo:boolean;accounts:{id:string;name:string}[];stage:string;count:number;items:Item[];proposals:RubricBumpProposal[];actionable:string[];
   cards:{delivery:string;result:string;card:{task:string;version:number;title:string}}[]};
 type ModelPlan={purpose:string;model:string;concurrency:number;target:string;configured:boolean};
 async function request(path="",body?:object){
@@ -21,7 +21,7 @@ async function request(path="",body?:object){
   return data;
 }
 
-export function CalibrationWorkspace({initialAccount,initialItem}:{initialAccount:string;initialItem:string}){
+export function CalibrationWorkspace({initialAccount,initialItem,records}:{initialAccount:string;initialItem:string;records:boolean}){
   const [data,setData]=useState<Snapshot|null>(null),[account,setAccount]=useState(initialAccount),[focus,setFocus]=useState<RubricFocus>("结构");
   const [routes,setRoutes]=useState<ModelPlan[]>([]),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);
   const [selection,setSelection]=useState(initialItem);
@@ -46,38 +46,40 @@ export function CalibrationWorkspace({initialAccount,initialItem}:{initialAccoun
     finally{setBusy(false);}
   }
   const active=data?.items.find(item=>item.task+":"+item.version===selection)??data?.items[0];
+  const eligible=data?.actionable??[];
+  const visibleProposals=data?.proposals.filter(row=>records||eligible.includes(row.id))??[];
   return <main className="dashboard calibration-page">
-    <header className="mast"><Link href="/studio/settings">返回工具与设置</Link><h1>发布复盘与规则校准</h1>
+    <header className="mast"><Link href={records?"/studio/system":"/studio/settings"}>{records?"返回系统机房":"返回账号与素材"}</Link><h1>{records?"规则提案存档与模型分工":"发布复盘与写作规则"}</h1>
       <div className="cal-actions"><label>账号<select value={account} onChange={event=>{setAccount(event.target.value);setSelection("");}}>
         <option value="">选择账号</option>{data?.accounts.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
         {data?.demo&&<button type="button" disabled={busy} onClick={()=>void perform({action:"seed"},"已载入隔离校准数据")}>载入离线校准样例</button>}</div>
     </header>
     {notice&&<p role="status">{notice}</p>}{error&&<p role="alert">{error}</p>}
-    {account&&<><section className="surface" aria-labelledby="cal-retro"><header className="cal-title"><h2 id="cal-retro">版本与实绩</h2>
-      <strong>{data?.stage??"cold-start"} · {data?.count??0} 篇已复盘</strong></header>
+    {account&&!records&&<section className="surface" aria-labelledby="cal-retro"><header className="cal-title"><h2 id="cal-retro">版本与实绩</h2>
+      <strong>{data?.count??0} 篇已复盘</strong></header>
       {!active?<p>此账号暂无锁定预测。定稿后可从编辑页打开发布复盘。</p>:<>
         <label>稿件<select value={active.task+":"+active.version} onChange={event=>setSelection(event.target.value)}>
           {data?.items.map(item=><option key={item.task+":"+item.version} value={item.task+":"+item.version}>{item.prediction.title} · v{item.version}</option>)}</select></label>
         <RetroEntry key={active.task+":"+active.version} item={active} demo={!!data?.demo} busy={busy} perform={perform}
           card={data?.cards.find(row=>row.card.task===active.task&&row.card.version===active.version)}/>
       </>}
-    </section>
-    <section className="surface" aria-labelledby="cal-rules"><h2 id="cal-rules">规则提案</h2>
+    </section>}
+    {account&&<section className="surface" aria-labelledby="cal-rules"><h2 id="cal-rules">{records?"提案记录":"可升级的写作规则"}</h2>
       <div className="cal-actions"><label>候选维度<select value={focus} onChange={e=>setFocus(e.target.value as RubricFocus)}>
         {rubricFocus.options.map(value=><option key={value}>{value}</option>)}</select></label>
         <button type="button" disabled={busy} onClick={()=>void perform({action:"propose",account,focus},"已完成历史样本重打")}>生成并重打历史样本</button></div>
-      {data?.proposals.map(row=><article className="cal-entry" key={row.id}>
-        <h3>{row.focus} <span className={row.passed?"cal-pass":"cal-block"}>{row.appliedVersion?"已生效 v"+row.appliedVersion:row.passed?"通过":"拦截"}</span></h3>
+      {visibleProposals.map(row=><article className="cal-entry" key={row.id}>
+        <h3>{row.focus} <span className={row.passed?"cal-pass":"cal-block"}>{row.appliedVersion?"已生效 v"+row.appliedVersion:eligible.includes(row.id)?"可合并":row.passed?"已失效":"未通过"}</span></h3>
         <p><strong>{row.agreement===null?"暂无可比排序":(row.agreement*100).toFixed(1)+"%"}</strong> · {row.aligned}/{row.comparable} 对一致 · {row.samples.length} 篇</p><p>{row.reason}</p>
         {!!row.conflicts.length&&<details><summary>查看 {row.conflicts.length} 对冲突</summary><ul>{row.conflicts.map((pair,index)=><li key={index}>{pair.higher} / {pair.lower} · {pair.reason}</li>)}</ul></details>}
-        {row.passed&&!row.appliedVersion&&<button type="button" disabled={busy} onClick={()=>void perform({action:"apply",account,id:row.id},"账号规则已更新")}>合并到账号规则</button>}
+        {eligible.includes(row.id)&&<button type="button" disabled={busy} onClick={()=>void perform({action:"apply",account,id:row.id},"账号规则已更新")}>合并到账号规则</button>}
       </article>)}
-    </section></>}
-    {account&&<ReferenceExtraction account={account} busy={busy} perform={perform}/>}
-    <section className="surface" aria-labelledby="cal-model"><h2 id="cal-model">模型路由</h2>
+    </section>}
+    {account&&!records&&<ReferenceExtraction account={account} busy={busy} perform={perform}/>}
+    {records&&<section className="surface" aria-labelledby="cal-model"><h2 id="cal-model">模型路由</h2>
       <button type="button" onClick={()=>void request("?routes=1").then(setRoutes).catch(e=>setError(e.message))}>预演模型路由</button>
       {routes.length>0&&<ul aria-label="路由预演结果">{routes.map(row=><li key={row.purpose}><strong>{row.purpose}</strong> · {row.model||"未配置"} · {row.target} · 并发 {row.concurrency}</li>)}</ul>}
-    </section>
+    </section>}
   </main>;
 }
 
@@ -146,8 +148,8 @@ export function PredictionLink({task,version}:{task:string;version:number}){
     try{const result=await request("",{action:"seal",task,version});setView(result);setFailure("");}
     catch(error){setFailure(error instanceof Error?error.message:"未能锁定");}
   }
-  return <details onToggle={event=>setOpened(event.currentTarget.open)}><summary>盲预测与发布复盘</summary>
-    {view?.prediction?<p>已锁定 v{version} · {view.prediction.level} · 流量 {view.prediction.ranges.reach.join("–")}</p>:view&&<><p>{view.reason}</p><button type="button" onClick={()=>void seal()}>尝试锁定当前版预测</button></>}
+  return <details onToggle={event=>setOpened(event.currentTarget.open)}><summary>发布前预期与复盘</summary>
+    {view?.prediction?<p>已锁定 v{version} · {view.prediction.level} · 流量 {view.prediction.ranges.reach.join("–")}</p>:view&&<><p>{view.reason}</p><button type="button" onClick={()=>void seal()}>保存这版的发布前预期</button></>}
     {failure&&<p role="alert">{failure}</p>}<Link href={calibrationPath}>打开发布复盘</Link>
   </details>;
 }

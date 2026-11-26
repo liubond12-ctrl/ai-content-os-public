@@ -17,9 +17,10 @@ export function DailyDesk(){
     const refresh=()=>void load().then(data=>{if(active){setRows(data);setFailed(false);}}).catch(()=>{if(active)setFailed(true);});
     refresh();const timer=setInterval(refresh,15000);return()=>{active=false;clearInterval(timer);};
   },[]);
+  if(rows&&!rows.some(row=>row.count>0))return null;
   return <section className="ck-work readiness-daily" aria-labelledby="daily-desk-heading"><h2 id="daily-desk-heading">今日统一作战台</h2>
     {failed&&<p role="status">暂时无法更新。</p>}
-    <div>{rows?.map(row=><Link key={row.label} href={row.href}><strong>{row.count}</strong> {row.label}</Link>)}</div>
+    <div>{rows?.filter(row=>row.count>0).map(row=><Link key={row.label} href={row.href}><strong>{row.count}</strong> {({"已派生待发三端包":"已备好待发布的成品","T+3d 到期待填":"待填写发布表现","待合并校准提案":"可升级的写作规则"} as Record<string,string>)[row.label]??row.label}</Link>)}</div>
     {!rows&&!failed&&<p role="status">正在读取待办…</p>}
   </section>;
 }
@@ -37,7 +38,7 @@ export function GovernanceWorkspace(){
   const [data,setData]=useState<ReturnType<typeof readinessEvaluation>|null>(null),[error,setError]=useState("");
   useEffect(()=>{let active=true;void load("?evaluation=1").then(result=>{if(active)setData(result);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
   const display=(result:{count:number;total:number;rate:number|null})=>result.rate===null?"缺测":(result.rate*100).toFixed(0)+"%（"+result.count+"/"+result.total+"）";
-  return <main className="dashboard readiness-page"><header className="mast"><Link href="/studio/settings">返回工具与设置</Link><h1>治理效果对比</h1></header>
+  return <main className="dashboard readiness-page"><header className="mast"><Link href="/studio/settings">返回工具与设置</Link><h1>内容检查效果</h1></header>
     <section className="surface"><p>{data?.basis}</p>{error&&<p role="alert">{error}</p>}
       {data?.metrics.map(metric=><div className="readiness-check" key={metric.label}><h2>{metric.label}</h2><p>{metric.formula}</p>
         <dl className="readiness-pair"><div><dt>单 Agent 模拟基准</dt><dd>{display(metric.single)}</dd></div>

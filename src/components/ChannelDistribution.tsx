@@ -8,8 +8,9 @@ import "./channel-distribution.css";
 type Entry={saved:ChannelDerivation|null;content?:ChannelContent};
 const channels=[["xiaohongshu","小红书"],["douyin-script","抖音"],["wechat","公众号"]] as const;
 
-export function ChannelDistribution({taskId,version,dirtyMother}:{taskId:string;version:number;dirtyMother:boolean}){
+export function ChannelDistribution({taskId,version,dirtyMother,mother}:{taskId:string;version:number;dirtyMother:boolean;mother:{title:string;body:string}}){
   const [open,setOpen]=useState(()=>typeof window!=="undefined"&&new URLSearchParams(location.search).get("distribution")==="1"),[variant,setVariant]=useState<ChannelVariant>("xiaohongshu");
+  const [original,showOriginal]=useState(false);
   const [entries,setEntries]=useState<Partial<Record<ChannelVariant,Entry>>>({});
   const [pending,setPending]=useState(""),[error,setError]=useState(""),[message,setMessage]=useState("");
   const lock=useRef(false);
@@ -29,7 +30,7 @@ export function ChannelDistribution({taskId,version,dirtyMother}:{taskId:string;
     return()=>controller.abort();
   },[open,path,variant,entry]);
 
-  function select(next:ChannelVariant){setVariant(next);setMessage("");setError("");}
+  function select(next:ChannelVariant){showOriginal(false);setVariant(next);setMessage("");setError("");}
   function close(){setOpen(false);requestAnimationFrame(()=>opener.current?.focus());}
   async function submit(action:"save"|"generate"){
     if(lock.current||!entry)return;
@@ -73,8 +74,11 @@ export function ChannelDistribution({taskId,version,dirtyMother}:{taskId:string;
         <button type="button" disabled={!!pending} onClick={close} aria-label="关闭分发">关闭</button>
       </header>
       {dirtyMother&&<p className="channel-hint">这里读取已保存的正式母稿。编辑器中的草稿改动需成为新正式版本后才能用于重新派生。</p>}
-      <nav aria-label="分发渠道">{channels.map(([key,label])=><button type="button" key={key} disabled={!!pending}
-        aria-pressed={variant===key||key==="douyin-script"&&variant==="douyin-post"} onClick={()=>select(key)}>{label}</button>)}</nav>
+      <nav className="creator-channels" aria-label="分发渠道" data-selected={original?0:variant==="xiaohongshu"?1:variant==="wechat"?3:2}>
+        <button type="button" aria-pressed={original} disabled={!!pending} onClick={()=>showOriginal(true)}>母稿</button>
+        {channels.map(([key,label])=><button type="button" key={key} disabled={!!pending}
+        aria-pressed={!original&&(variant===key||key==="douyin-script"&&variant==="douyin-post")} onClick={()=>select(key)}>{label}</button>)}</nav>
+      {original?<div className="creator-channel-content" key="mother"><h3>{mother.title}</h3><div className="creator-mother-text">{mother.body}</div></div>:<>
       {variant.startsWith("douyin")&&<nav aria-label="抖音形态">
         <button type="button" disabled={!!pending} aria-pressed={variant==="douyin-script"} onClick={()=>select("douyin-script")}>口播逐字稿</button>
         <button type="button" disabled={!!pending} aria-pressed={variant==="douyin-post"} onClick={()=>select("douyin-post")}>短图文</button>
@@ -82,16 +86,16 @@ export function ChannelDistribution({taskId,version,dirtyMother}:{taskId:string;
       {entry?<div className="channel-actions">
         <button type="button" className={!content?"primary":undefined} disabled={!!pending} onClick={()=>void submit("generate")}>{content?"重新生成":"生成渠道稿"}</button>
         {content&&<><button type="button" disabled={!dirty||!!pending} onClick={()=>void submit("save")}>保存渠道稿</button>
-          <button type="button" className="primary" disabled={!!pending} onClick={()=>void copy()}>{variant==="wechat"?"复制公众号富文本":"复制渠道稿"}</button>
+          <button type="button" className="primary" disabled={!!pending} onClick={()=>void copy()}>{variant==="wechat"?"复制公众号成品":"复制成品"}</button>
           {variant==="wechat"&&<button type="button" disabled={!!pending} onClick={()=>void copy(true)}>复制纯文本</button>}
         </>}
       </div>:!error&&<p role="status">正在读取渠道稿…</p>}
       {error&&!entry&&<button type="button" onClick={()=>{setError("");setOpen(false);requestAnimationFrame(()=>setOpen(true));}}>重新读取</button>}
       <p className="channel-status" role="status">{pending||message||(dirty?"渠道稿有未保存的编辑。":"")}</p>
       {error&&<p role="alert">{error}</p>}
-      {content&&<div className="channel-layout"><fieldset disabled={!!pending}><legend>编辑渠道稿</legend>
+      {content&&<div className="channel-layout creator-channel-content" key={variant}><fieldset disabled={!!pending}><legend>编辑渠道稿</legend>
         <ChannelEditor value={content} change={next=>{setMessage("");setEntries(previous=>({...previous,[variant]:{...entry,content:next}}));}}/>
-      </fieldset><ChannelRadar content={content}/></div>}
+      </fieldset><ChannelRadar content={content}/></div>}</>}
     </dialog>}
   </>;
 }
@@ -135,20 +139,21 @@ function ChannelRadar({content}:{content:ChannelContent}){
   const {matches,keywords,hooks,cta,format}=channelRadar(content);
   const geo=geoReport(channelFields(content).map(field=>field.text).join("\n"));
   return <aside className="channel-radar" aria-label="合规雷达">
-    <h3>合规雷达</h3><p>本地词表预检。命中请结合上下文人工复核。</p>
-    <p><strong>{matches.length?"词面命中 "+matches.length+" 处":"未命中当前词表"}</strong></p>
+    {!!matches.length&&<h3>核对 {matches.length} 处用词</h3>}
     {!!matches.length&&<ul>{matches.map(match=>{
       const source=channelFields(content).find(field=>field.field===match.field)?.text??match.text;
       return <li key={match.field+":"+match.start+match.reason}><strong>{match.field}</strong><p>{source.slice(Math.max(0,match.start-12),match.start)}<mark>{match.text}</mark>{source.slice(match.end,match.end+12)}</p><small>{match.reason}</small></li>;
     })}</ul>}
-    <h4>内容完整度</h4><ul>
+    <details className="disclosure"><summary>{matches.length?"查看其他检查":"常规用词已检查 · 查看详情"}</summary>
+    <p>按本机词表检查，请结合上下文判断。</p><h4>发布前清单</h4><ul>
       <li>搜索关键词 {keywords.length?keywords.filter(item=>item.present).length+"/"+keywords.length+" 已覆盖":"待填写"}</li>
       {keywords.filter(item=>!item.present).map(item=><li key={item.term}>缺少「{item.term}」</li>)}
       <li>行动引导 {cta?"已填写":"待补充"}</li>
       {hooks!==null&&<li>不同钩子 {hooks}/3</li>}
       {format!==null&&<li>{content.variant==="wechat"?"引用框、重点、步骤":"Emoji 分段"} {format?"已具备":"待完善"}</li>}
     </ul>
-    <h4>GEO 友好度 · {geo.filter(item=>item.met).length}/4</h4><p>启发式检查，供作者核对文案。</p>
+    <h4>搜索与问答可读性 · {geo.filter(item=>item.met).length}/4</h4><p>看看文中是否有清楚定义、可对照参数和来源。</p>
     <ul>{geo.map(item=><li key={item.label}><strong>{item.label} · {item.met?"检测到":"可补充"}</strong>{!item.met&&<p>{item.advice}</p>}</li>)}</ul>
+    </details>
   </aside>;
 }

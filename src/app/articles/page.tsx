@@ -47,7 +47,7 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
   }
   const select=(name:string,label:string,choices:readonly string[])=><label>{label}<select name={name} defaultValue={params.get(name)||""}><option value="">全部</option>{choices.map(s=><option key={s} value={s}>{name==="destination"&&s==="未记录"?"尚未登记发布":s}</option>)}</select></label>;
   const filterCount=["samples","history","account","platform","kind","status","destination","from","to","series","tag","favorite"].filter(key=>params.get(key)).length;
-  return <main className="dashboard content-index"><header className="mast"><h1>我的内容</h1><Link href={url({archived:archived?"0":"1",page:"1"})}>{archived?"返回当前内容":"查看归档"}</Link></header>
+  return <main className="dashboard content-index"><header className="mast"><h1>写稿与精修</h1><Link href={url({archived:archived?"0":"1",page:"1"})}>{archived?"返回当前内容":"查看归档"}</Link></header>
   <form action="/articles" className="production content-filters"><input type="hidden" name="archived" value={archived?"1":"0"}/>
   <div className="content-search-row"><label><span className="article-sr-only">搜索稿件</span><input name="q" type="search" defaultValue={params.get("q")||""} placeholder="搜索选题、标题或正文"/></label><button>查找</button></div>
   <details><summary>筛选条件{filterCount>0&&` · 已选 ${filterCount} 项`}</summary><div className="content-filter-grid"><label>账号<select name="account" defaultValue={params.get("account")||""}><option value="">全部</option>{accounts.map(a=><option key={String(a.account)} value={String(a.account)}>{String(a.name||a.account)}</option>)}</select></label>
@@ -77,6 +77,8 @@ export default async function Page({searchParams}:{searchParams:Promise<Record<s
       </details>
       {params.get("q")&&!historyMatch&&<p className="content-excerpt">{String(r.excerpt||r.topic)}</p>}
       <details><summary>{[r.favorite?"已收藏":"收藏",r.series||"专题",r.tags||"标签"].join(" · ")}</summary><form action={update}><input type="hidden" name="id" value={id}/><label><input type="checkbox" name="favorite" defaultChecked={!!r.favorite}/>收藏</label><label>专题<input name="series" defaultValue={String(r.series||"")} maxLength={100}/></label><label>标签（逗号分隔）<input name="tags" defaultValue={String(r.tags||"")} pattern="[^,，、]+([,，、][^,，、]+){0,4}|"/></label><button>保存分类</button></form></details></div>
-      <form action={update}><input type="hidden" name="id" value={id}/><button name="action" value={archived?"restore":"archive"}>{archived?"恢复":"归档"}</button></form></article>;})}{!rows.length&&<div className="empty"><p>没有匹配的稿件。</p>{showSampleShortcut&&<Link href={url({samples:"1",page:"1"})}>在示例与验收稿中查找匹配稿件</Link>}</div>}</div>
+      {archived?<form action={update}><input type="hidden" name="id" value={id}/><button name="action" value="restore">恢复稿件</button></form>:
+      <details className="creator-confirm"><summary>归档稿件</summary><p>归档后可从「查看归档」恢复。</p>
+        <form action={update}><input type="hidden" name="id" value={id}/><button name="action" value="archive">确认归档</button></form></details>}</article>;})}{!rows.length&&<div className="empty"><p>没有匹配的稿件。</p>{showSampleShortcut&&<Link href={url({samples:"1",page:"1"})}>在示例与验收稿中查找匹配稿件</Link>}</div>}</div>
       <nav>{page>1&&<Link href={url({page:String(page-1)})}>上一页 </Link>}第 {page} / {pages} 页 {page<pages&&<Link href={url({page:String(page+1)})}>下一页</Link>}</nav></section></main>;
 }

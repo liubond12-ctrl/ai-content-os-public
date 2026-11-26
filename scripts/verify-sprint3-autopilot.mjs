@@ -107,7 +107,7 @@ try{
     .cards.find(row=>row.card.task===retry.taskId&&row.card.kind==="morning-item");
   await morning.getByRole("link",{name:"查看母稿"}).filter({visible:true}).click();
   await page.waitForURL(url=>url.pathname==="/studio/editor"&&url.searchParams.get("taskId")===retry.taskId);
-  await page.getByRole("button",{name:"采纳此方案替换",exact:true}).first().click();
+  await page.getByRole("button",{name:"替换原文",exact:true}).first().click();
   await page.getByText("已保存修改",{exact:true}).waitFor();
   await waitFor(view,data=>data.cards.some(row=>row.id===secondCard.id&&row.result==="已在工作台处理"&&row.delivery==="sent"));
   assert.equal((await post({action:"decision",card:secondCard.id,message:secondCard.message,decision:"approve"})).status,409);

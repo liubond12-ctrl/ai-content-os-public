@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./home.css";
 import "./workbench-scheme.css";
+import "./creator-workspace.css";
 import Workspace from "@/components/Workspace";
 
 export const dynamic="force-dynamic";

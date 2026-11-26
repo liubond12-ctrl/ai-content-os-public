@@ -8,10 +8,10 @@
 .ck-ocean {position:fixed;inset:0 0 0 var(--workspace-rail-width);width:calc(100% - var(--workspace-rail-width));height:100%;pointer-events:none;z-index:-1}
 .ck-ocean[hidden] {display:none}
 .cockpit-home {font-size:16px}
-.ck-settings {position:absolute;top:40px;right:var(--ck-pad);z-index:3;color:var(--ck-muted)}
+.ck-settings {position:relative;width:fit-content;color:var(--ck-muted)}
 .ck-settings summary,.ck-flow summary {cursor:pointer}
 .ck-settings summary {font-size:14px;line-height:40px;list-style:none}
-.ck-settings>div {position:absolute;right:0;width:244px;background:white;border-radius:16px;border:1px solid var(--ck-line);padding:16px}
+.ck-settings>div {width:min(244px,100%);background:var(--surface);border-radius:16px;border:1px solid var(--ck-line);padding:16px}
 .ck-settings label {display:flex;gap:10px;align-items:center;min-height:40px}
 .ck-settings input[type=checkbox]{width:17px;height:17px}
 .ck-settings input[type=range]{width:100px}

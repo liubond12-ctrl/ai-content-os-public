@@ -60,6 +60,10 @@ try{
   page.setDefaultTimeout(15000);
   page.on("dialog",dialog=>void dialog.accept());
   const sidebar=page.getByRole("navigation",{name:"工作空间"});
+  const openWriting=async label=>{await sidebar.getByRole("link",{name:"写稿与精修"}).click();await page.getByRole("navigation",{name:"写稿与精修"}).getByRole("link",{name:label}).click();};
+  const openMaterials=async label=>{await sidebar.getByRole("link",{name:"账号与素材"}).click();await page.getByRole("navigation",{name:"账号与素材"}).getByRole("link",{name:label}).click();};
+  const openSystem=()=>page.getByRole("link",{name:"系统机房",exact:true}).click();
+
   const topic=scope=>scope.getByLabel("选题",{exact:true});
   async function choose(scope,account){
     const picker=scope.getByRole("combobox",{name:"账号",exact:true});
@@ -68,9 +72,9 @@ try{
     assert.equal(await scope.locator(".draft-fields select").first().inputValue(),account.platform);
   }
   const shot=(name)=>page.screenshot({path:evidence+"/"+name+".png"});
-  await page.goto(base);await page.getByText("当前没有待办",{exact:true}).waitFor();
+  await page.goto(base);await page.getByRole("heading",{name:"今日待办",exact:true}).waitFor();assert.equal(await page.locator("#home-todos").count(),0);
   assert.equal(await page.locator(".ck-stats").count(),0);
-  await sidebar.getByRole("link",{name:"新建内容",exact:true}).click();
+  await openWriting("新建稿件");
   const form=page.locator("form.production-form");
   await choose(form,accounts[0]);await topic(form).fill("单篇续写隔离稿");
   for(const field of [form.getByRole("combobox",{name:"账号",exact:true}),form.locator(".draft-fields select").first(),topic(form),form.locator(".draft-fields select").last()]){
@@ -78,7 +82,7 @@ try{
   }
   await shot("02-single");
   await form.getByRole("button",{name:"保存草稿"}).click();await page.getByText(/^草稿已保存，可在首页/).waitFor();
-  await sidebar.getByRole("link",{name:"首页",exact:true}).click();await page.getByRole("heading",{name:"最近编辑"}).waitFor();
+  await sidebar.getByRole("link",{name:"今日待办",exact:true}).click();await page.getByRole("heading",{name:"最近编辑"}).waitFor();
   await shot("01-resume");
   await page.getByRole("link",{name:/单篇续写隔离稿.*继续编辑/}).click();await topic(form).waitFor();
   assert.equal(await topic(form).inputValue(),"单篇续写隔离稿");
@@ -216,7 +220,7 @@ try{
   await page.getByRole("button",{name:"确认定稿",exact:true}).click();
   await page.getByText("登记 v2 发布去向").waitFor();
   checks.push("自由文章入口打开空白编辑器并人工定稿");
-  await sidebar.getByRole("link",{name:"新建内容",exact:true}).click();
+  await openWriting("新建稿件");
   await page.getByRole("link",{name:"批量填报",exact:true}).click();
   const batchForm=page.getByRole("form",{name:"批量填报"});
   const row=(i)=>batchForm.locator(".batch-edit-row").nth(i);
@@ -277,7 +281,7 @@ try{
   assert.equal(snapshots[1].input.production.attachments[0].name,"隔离附件.txt");
   assert.deepEqual(snapshots.map(r=>r.input.production.account),[accounts[1],accounts[0],...accounts.slice(2)].map(a=>a.id));
   checks.push("十账号检查漏填和重复；草稿、大纲、附件与清单勾选刷新保留；预检、手工调序及实际入队顺序和账号一致");
-  await sidebar.getByRole("link",{name:"写作规范",exact:true}).click();
+  await openMaterials("编辑写作规范");
   await page.getByRole("button",{name:"添加第一条写作规范"}).click();
   await page.getByLabel("名称",{exact:true}).fill("隔离写作规范");
   await page.getByLabel("表达、结构与事实引用要求").fill("先写可观察的动作，再补充解释。");
@@ -292,7 +296,7 @@ try{
   await page.getByRole("button",{name:/隔离写作规范 · v1/}).waitFor();
   const oldScope=JSON.parse(db.prepare("SELECT payload FROM versions WHERE id=? AND rev=0").get(snapshots[1].id).payload).input.production.rules;
   assert.equal(oldScope.length,0);
-  await sidebar.getByRole("link",{name:"新建内容",exact:true}).click();
+  await openWriting("新建稿件");
   await choose(form,accounts[0]);await topic(form).fill("适用规范的单篇");
   await form.getByRole("button",{name:"检查并生成初稿"}).click();await page.getByText(/规范：隔离写作规范 v1/).waitFor();
   await choose(form,accounts[1]);await topic(form).fill("不适用该规范的账号");
@@ -300,20 +304,20 @@ try{
   checks.push("新增规范在保存前说明账号、平台、目标、生效时点；匹配和不匹配的新任务预检与旧快照一致");
   const review=await until(()=>db.prepare("SELECT task FROM production_queue WHERE batch=? AND status='待人工审核' ORDER BY position LIMIT 1").get(batch)?.task);
   const blocked=await until(()=>db.prepare("SELECT status FROM production_queue WHERE task=?").get(snapshots[2].id)?.status==="受阻"&&snapshots[2].id);
-  await sidebar.getByRole("link",{name:"首页",exact:true}).click();
+  await sidebar.getByRole("link",{name:"今日待办",exact:true}).click();
   const blockedCard=page.locator(".ck-work a.ck-card").filter({hasText:titles[2]});
   await blockedCard.getByText("受阻",{exact:true}).waitFor();
   const blockedTarget=await blockedCard.getAttribute("href");
   assert.ok(blockedTarget.endsWith(blocked));
   await blockedCard.click();await page.waitForURL(new RegExp(blocked));
-  await sidebar.getByRole("link",{name:"首页",exact:true}).click();
+  await sidebar.getByRole("link",{name:"今日待办",exact:true}).click();
   const todo=page.locator('.ck-work a.ck-card[href$="'+review+'"]');
   await todo.waitFor();await shot("06-todo");
   await todo.click();await page.getByLabel("文章标题",{exact:true}).waitFor();
   await page.getByLabel("文章标题",{exact:true}).fill("已从首页处理的验收稿");
   await page.getByRole("button",{name:"确认定稿",exact:true}).click();await page.getByText("登记 v7 发布去向").waitFor();
   assert.equal(db.prepare("SELECT count(*) n FROM article_snapshots WHERE task_id IN (SELECT task FROM production_queue WHERE batch=?) AND json_extract(payload,'$.confirmed')=1").get(batch).n,1);
-  await sidebar.getByRole("link",{name:"我的内容",exact:true}).click();
+  await sidebar.getByRole("link",{name:"写稿与精修",exact:true}).click();
   await page.getByRole("link",{name:"不带归属的个人长文",exact:true}).waitFor();
   const found=page.getByRole("link",{name:"已从首页处理的验收稿",exact:true});
   assert.equal(await found.count(),0);
@@ -323,11 +327,12 @@ try{
   await page.locator(".list article").filter({has:found}).getByText("尚未登记发布",{exact:true}).waitFor();
   await shot("07-content");
   checks.push("有待办首页分别直达受阻稿和审核稿，并完成待审稿人工定稿；个人及未归属稿默认可见，显式包含验收稿后刷新保留");
-  await sidebar.getByRole("link",{name:"工具与设置",exact:true}).click();
+  await openSystem();
+  await page.getByText("实验、验收与离线练习",{exact:true}).click();
   await page.getByRole("link",{name:"质量检查、模型实验与诊断"}).waitFor();await page.getByRole("link",{name:"验收报告",exact:true}).waitFor();
-  await sidebar.getByRole("link",{name:"写作参考库",exact:true}).click();await page.getByRole("heading",{name:"写作参考库"}).waitFor();
+  await openMaterials("查看写作素材");await page.getByRole("heading",{name:"写作参考库"}).waitFor();
   await page.setViewportSize({width:390,height:844});
-  await sidebar.getByRole("link",{name:"今日热点",exact:true}).click();
+  await openWriting("参考今日热点");
   const hot=page.locator(".hot-report").first(),summary=hot.locator(".hot-expand summary");
   await summary.focus();await page.keyboard.press("Shift+Tab");await page.keyboard.press("Tab");
   assert.ok(await summary.evaluate(e=>e===document.activeElement&&e.matches(":focus-visible")));
@@ -338,14 +343,15 @@ try{
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await shot("08-hot-mobile");await hotspot.press("Enter");await page.waitForURL(/from=hot/);await topic(form).waitFor();
   checks.push("写作参考库和工具与设置入口一致；热点在 390px 无横向溢出，键盘可展开和转选题，三个目标高度至少 44px");
-  await sidebar.getByRole("link",{name:"工具与设置",exact:true}).click();
+  await sidebar.getByRole("link",{name:"账号与素材"}).click();
   await page.getByRole("heading",{name:"日常配置"}).waitFor();
   await page.getByRole("link",{name:"账号管理",exact:true}).last().click();
   await page.getByRole("heading",{name:"账号管理"}).waitFor();
-  await sidebar.getByRole("link",{name:"工具与设置",exact:true}).click();
+  await openSystem();
+  await page.getByText("实验、验收与离线练习",{exact:true}).click();
   await page.getByRole("link",{name:"质量检查、模型实验与诊断"}).click();
   await page.waitForURL(base+"/quality");
-  await sidebar.getByRole("link",{name:"工具与设置",exact:true}).click();
+  await openSystem();
   await page.getByRole("link",{name:"备份与恢复",exact:true}).click();
   await page.getByRole("button",{name:"创建样本备份并预检"}).click();
   await page.getByText(/预检通过 · 五个文件/).waitFor();

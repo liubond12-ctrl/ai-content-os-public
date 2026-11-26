@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
+import type {ReviewAttention} from "@/types/creator-workspace";
 import type {Review} from "../studio/eval";
 import type {Flow} from "../studio/collaboration";
 import type {Opinion} from "../studio/professional-review";
@@ -8,7 +9,7 @@ import {conflictGroups,exactRevision,type VersionText} from "../studio/discussio
 import {reviewVisual} from "../studio/review-visual";
 import {ReviewConsultation} from "./ReviewConsultation";
 type Anchor=Pick<Opinion["issue"],"field"|"quote"|"offset">;
-type AuthorView={versions:VersionText[];detailHref:string;returnToBody:()=>void;onReady:()=>void;onLocateVersion:(version:number,issue:Anchor)=>void;unmapped?:Anchor;resolved?:string[];onEdit?:(id:string,anchor:Anchor,text:string)=>Promise<void>;onRewrite?:(id:string,anchor:Anchor,suggestion:string)=>Promise<void>};
+type AuthorView={versions:VersionText[];detailHref:string;returnToBody:()=>void;onReady:()=>void;onAttention?:(kind:ReviewAttention)=>void;onLocateVersion:(version:number,issue:Anchor)=>void;unmapped?:Anchor;resolved?:string[];onEdit?:(id:string,anchor:Anchor,text:string)=>Promise<void>;onRewrite?:(id:string,anchor:Anchor,suggestion:string)=>Promise<void>};
 
 export function ArticleReview({taskId,version,stale=false,article,onLocate,onDecide,authorView}:{taskId:string;version:number;article?:{title:string;body:string};stale?:boolean;onDecide?:(review:string,index:number,quote:string,replacement:string,reason:string)=>Promise<void>;onLocate?:(issue:Anchor)=>void;authorView?:AuthorView}){
   const [rows,setRows]=useState<Review[]>([]),[busy,setBusy]=useState(false),[error,warn]=useState("");
@@ -81,6 +82,14 @@ export function ArticleReview({taskId,version,stale=false,article,onLocate,onDec
         <label>决定理由<input value={decision.reason} onChange={e=>edit({...decision,reason:e.target.value})}/></label>
         <button disabled={busy||stale||!decision.reason.trim()} onClick={async()=>{setBusy(true);try{await onDecide(r.id,k,i.quote,decision.replacement,decision.reason);}finally{setBusy(false);}}}>确认处理</button><button onClick={()=>edit(null)}>取消</button></fieldset>}</>;
   }
+  const attentionPanel=flow?.panels?.findLast(row=>row.articleVersion===version);
+  const latest=rows.find(row=>row.result)?.result;
+  const risky=latest?.status==="blocked"||latest?.facts.checks.some(item=>item.status!=="来源原文匹配")||
+    attentionPanel?.reviews.some(row=>row.result.status==="blocked"||row.result.facts.checks.some(item=>item.status!=="来源原文匹配"));
+  const hasConflict=attentionPanel&&conflictGroups(attentionPanel).some(ids=>!authorView?.resolved?.includes(ids.toSorted().join(":")));
+  const attention:ReviewAttention=risky?"risk":hasConflict?"conflict":latest?.status==="pass"||attentionPanel?.status==="pass"?"clear":"normal";
+  const onAttention=authorView?.onAttention;
+  useEffect(()=>{if(ready)onAttention?.(attention);},[ready,attention,onAttention]);
   if(authorView){
     function archivedQuote(issue:Anchor){
       if(!article||authorView?.unmapped?.field!==issue.field||authorView.unmapped.offset!==issue.offset)return null;
@@ -129,7 +138,7 @@ export function ArticleReview({taskId,version,stale=false,article,onLocate,onDec
         <p><strong>处理</strong> 补充包含这句主张的来源，或改写、删除缺证部分。</p>
         <button type="button" className="audit-claim-action" onClick={()=>onLocate?.(c)}>定位并改写</button>{archivedQuote(c)}
       </article>)}
-      {(visual.experts.length>0||visual.conflicts.length>0)&&<ReviewConsultation key={visualPanel?"panel:"+visualPanel.id:"basic:"+row?.id} visual={visual} resolved={handled} applied={!!applied}
+      {(visual.experts.length>0||visual.conflicts.length>0)&&<ReviewConsultation key={visualPanel?"panel:"+visualPanel.id:"basic:"+row?.id} visual={visual} resolved={handled} applied={!!applied} attention={attention}
         onEdit={visual.version===version?authorView.onEdit:undefined} onRewrite={visual.version===version?authorView.onRewrite:undefined}
         onLocate={issue=>visual.version===version?onLocate?.(issue):authorView.onLocateVersion(visual.version,issue)}/>}
       {rows[0]&&matches(rows[0]).map((m,i)=><button key={m.offset} disabled={reviewing||stale} onClick={()=>resolve(rows[0].id,m.offset)}>选定第 {i+1} 处 · {m.context}</button>)}

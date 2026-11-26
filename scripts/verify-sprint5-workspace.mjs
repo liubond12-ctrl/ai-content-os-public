@@ -126,8 +126,9 @@ try{
   await page.goto(base+"/studio/editor?taskId="+first+"&distribution=1");
   const drawer=page.getByRole("dialog",{name:"三端一键分发"});
   await drawer.getByRole("button",{name:"公众号",exact:true}).click();
-  await drawer.getByText(/GEO 友好度 · \d\/4/).waitFor();
-  evidence.geo=await drawer.getByText(/GEO 友好度 · \d\/4/).textContent();
+  await drawer.locator(".channel-radar summary").click();
+  await drawer.getByText(/搜索与问答可读性 · \d\/4/).waitFor();
+  evidence.geo=await drawer.getByText(/搜索与问答可读性 · \d\/4/).textContent();
   await page.screenshot({path:folder+"/03-geo.png",fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await page.goto(packageUrl);

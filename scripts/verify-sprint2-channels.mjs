@@ -58,7 +58,7 @@ try{
   await drawer.getByRole("textbox",{name:"标题 1",exact:true}).fill("改后标题｜蓝笔与纸角");
   await drawer.getByRole("button",{name:"保存渠道稿",exact:true}).click();
   await drawer.getByText("渠道稿已保存。",{exact:true}).waitFor();
-  await drawer.getByRole("button",{name:"复制渠道稿",exact:true}).click();
+  await drawer.getByRole("button",{name:"复制成品",exact:true}).click();
   assert((await clipboard())["text/plain"].includes("改后标题｜蓝笔与纸角"));
   evidence.channels.push({variant:"xiaohongshu",risk:"加我微信",revision:2});
   await page.screenshot({path:folder+"/01-xiaohongshu.png"});
@@ -83,7 +83,7 @@ try{
   await drawer.getByRole("textbox",{name:"内容块 2",exact:true}).fill("<img src=x onerror=alert(1)> & 校样");
   await drawer.getByRole("button",{name:"保存渠道稿",exact:true}).click();
   await drawer.getByText("渠道稿已保存。",{exact:true}).waitFor();
-  await drawer.getByRole("button",{name:"复制公众号富文本"}).click();
+  await drawer.getByRole("button",{name:"复制公众号成品"}).click();
   await drawer.getByText("已复制富文本和纯文本。",{exact:true}).waitFor();
   const clip=await clipboard();
   assert(clip["text/html"].includes("<blockquote"));

@@ -64,7 +64,7 @@ try{
   result.budget={before:costs.budget,after:halted.budget,screens:screened.screens};
   await page.goto(base+"/");
   await page.getByRole("heading",{name:"今日统一作战台"}).waitFor();
-  await page.getByRole("link",{name:/1 已派生待发三端包/}).waitFor();
+  await page.getByRole("link",{name:/1 已备好待发布的成品/}).waitFor();
   await page.screenshot({path:folder+"/03-daily-desk.png",fullPage:true});
   result.desk=ready;
   const author=await prod({action:"entity",kind:"account",value:{id:"v1-series",version:0,status:"启用",name:"写作连载演练",platform:"小红书"}});

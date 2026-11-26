@@ -37,7 +37,7 @@ try{
     await page.setViewportSize({width,height:width===390?844:900});
     await navigate("/");
     await page.getByRole("heading",{name:"今日统一作战台"}).waitFor();
-    await page.getByRole("link",{name:/已派生待发三端包/}).waitFor();
+    await page.getByRole("link",{name:/已备好待发布的成品/}).waitFor();
     await record("home",width);
     await navigate("/hot");
     await page.getByRole("heading",{name:"今日热点"}).waitFor();
@@ -84,13 +84,13 @@ try{
     const {task,version}=phase.fastlane;
     await navigate("/studio/editor?taskId="+task+"&version="+version+"&distribution=1");
     const drawer=page.getByRole("dialog",{name:"三端一键分发"});
-    await drawer.getByText(/GEO 友好度/).waitFor();
+    await drawer.locator(".channel-radar summary").waitFor();
     await record("channels",width,async()=>{
       for(const label of ["抖音","公众号","小红书"]){
         await drawer.getByRole("button",{name:label,exact:true}).click();
-        await drawer.getByText(/GEO 友好度/).waitFor();
+        await drawer.locator(".channel-radar summary").waitFor();
       }
-      const copy=drawer.getByRole("button",{name:"复制渠道稿"});
+      const copy=drawer.getByRole("button",{name:"复制成品"});
       await copy.scrollIntoViewIfNeeded();
       assert(await copy.isEnabled());
       assert(await drawer.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
@@ -107,13 +107,13 @@ try{
     const retro=phase.desk.find(row=>row.label==="T+3d 到期待填");
     assert(retro?.count>0&&retro.href.includes("item="));
     await navigate("/");
-    const retroLink=page.getByRole("link",{name:/T\+3d 到期待填/});
+    const retroLink=page.getByRole("link",{name:/待填写发布表现/});
     assert.equal(await retroLink.getAttribute("href"),retro.href);
     await retroLink.click();
     const retroTarget=new URL(retro.href,base);
     await page.waitForURL(url=>url.pathname===retroTarget.pathname&&url.searchParams.get("item")===retroTarget.searchParams.get("item"));
     await page.reload();
-    await page.getByText("calibration · 5 篇已复盘",{exact:true}).waitFor();
+    await page.getByText("5 篇已复盘",{exact:true}).waitFor();
     await page.getByText(/已模拟到期/).waitFor();
     const selected=await page.getByLabel(/^稿件/).inputValue();
     assert.equal(selected,retroTarget.searchParams.get("item"));

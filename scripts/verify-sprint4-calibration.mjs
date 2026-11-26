@@ -28,26 +28,33 @@ const page=await browser.newPage({viewport:{width:1440,height:960},timezoneId:"A
 page.setDefaultTimeout(14000);
 try{
   await page.goto(base+"/studio/settings");
-  await page.getByRole("link",{name:"发布复盘与规则校准"}).click();
+  await page.getByRole("link",{name:"发布复盘与写作规则"}).click();
   await page.getByRole("button",{name:"载入离线校准样例"}).click();
-  await page.getByText("calibration · 5 篇已复盘",{exact:true}).waitFor();
+  await page.getByText("5 篇已复盘",{exact:true}).waitFor();
   const baseline=countCalls(),initial=await view(),pending=initial.items.find(item=>!item.retro.length);
   assert.equal(initial.items.length,6);
   assert.equal(Date.parse(pending.publication.dueAt)-Date.parse(pending.publication.publishedAt),72*3600000);
   assert(pending.prediction.lockedAt<pending.publication.publishedAt);
   assert.equal(initial.cards.length,0);
+  const authorUrl=base+path+"?account="+account;
+  const recordsUrl=base+"/studio/system/rules?account="+account;
+  await page.goto(recordsUrl);
   await page.getByRole("button",{name:"预演模型路由"}).click();
   await page.getByRole("list",{name:"路由预演结果"}).waitFor();
   const routes=await (await api("/api/calibration?routes=1")).json();
   assert.equal(routes.length,5);
   assert.equal(countCalls(),baseline);
   await page.screenshot({path:folder+"/01-awaiting-and-routing.png",fullPage:true});
+  await page.goto(authorUrl);
 
   await page.getByRole("button",{name:"生成并重打历史样本"}).click();
-  await page.getByRole("heading",{name:"结构 通过"}).waitFor();
+  await page.getByRole("heading",{name:"结构 可合并"}).waitFor();
   await page.getByLabel("候选维度").selectOption("互动引导");
   await page.getByRole("button",{name:"生成并重打历史样本"}).click();
-  await page.getByRole("heading",{name:"互动引导 拦截"}).waitFor();
+  await wait(view,data=>data.proposals.some(row=>!row.passed));
+  assert.equal(await page.getByRole("heading",{name:"互动引导 未通过"}).count(),0);
+  await page.goto(recordsUrl);
+  await page.getByRole("heading",{name:"互动引导 未通过"}).waitFor();
   await page.getByText("查看 10 对冲突").click();
   const {proposals}=await view(),pass=proposals.find(p=>p.passed),blocked=proposals.find(p=>!p.passed);
   assert.equal(pass.agreement,1);assert.equal(blocked.agreement,0);
@@ -59,13 +66,14 @@ try{
   await page.screenshot({path:folder+"/02-rubric-gate.png",fullPage:true});
   evidence.gate={pass:{pairs:pass.comparable,agreement:pass.agreement,id:pass.id},block:{pairs:blocked.comparable,agreement:blocked.agreement,status:denied.status,conflicts:blocked.conflicts}};
 
+  await page.goto(authorUrl);
   await page.getByRole("button",{name:"模拟 T+3d 到期"}).click();
   await page.getByText(/T\+3d 复盘 · 离线新稿 · 纸张叠放 · 已模拟投递/).waitFor();
   const metrics={reach:12000,likes:210,saves:109,comments:33,conversions:8};
   const labels={reach:"播放或阅读",likes:"赞",saves:"藏",comments:"评论",conversions:"转化"};
   for(const [key,value] of Object.entries(metrics))await page.getByRole("spinbutton",{name:labels[key],exact:true}).fill(String(value));
   await page.getByRole("button",{name:"追加实绩"}).click();
-  await page.getByText("calibration · 6 篇已复盘",{exact:true}).waitFor();
+  await page.getByText("6 篇已复盘",{exact:true}).waitFor();
   await page.getByText("查看初稿与正式版本的改动").click();
   const finished=await wait(view,data=>data.cards.some(row=>row.result==="复盘已登记"));
   const stored=finished.items.find(row=>row.task===pending.task);
@@ -129,8 +137,11 @@ try{
   await page.goto(base+path);
   await page.setViewportSize({width:390,height:844});
   await page.getByRole("combobox",{name:/账号/}).selectOption(account);
-  await page.getByText("calibration · 6 篇已复盘",{exact:true}).waitFor();
+  await page.getByText("6 篇已复盘",{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.equal(await page.locator("article.cal-entry").count(),0);
+  await page.goto(recordsUrl);
+  await page.getByRole("heading",{name:"互动引导 未通过"}).waitFor();
   assert.deepEqual(await page.locator("article.cal-entry").evaluateAll(rows=>rows.map(row=>getComputedStyle(row).display)),["block","block"]);
   await page.screenshot({path:folder+"/04-narrow.png",fullPage:true});
   await writeFile(folder+"/acceptance.json",JSON.stringify(evidence,null,2)+"\n");

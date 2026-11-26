@@ -4,47 +4,44 @@ import {usePathname} from "next/navigation";
 import {rememberArticleEntry} from "./RestoreArticlePosition";
 import {Icon} from "./WorkspaceIcon";
 
-const sections=[
-  {href:"/",name:"首页",icon:"home"},
-  {href:"/hot",name:"今日热点",icon:"hot"},
-  {href:"/production/create",name:"新建内容",icon:"doc"},
-  {href:"/articles",name:"我的内容",icon:"doc"},
-  {href:"/studio/cases",name:"写作参考库",icon:"book"},
-  {href:"/production/rules",name:"写作规范",icon:"book"},
-  {href:"/studio/settings",name:"工具与设置",icon:"settings"},
-] as const;
-const childrenByPath:Record<string,[string,string]>={
-  "/studio/settings/feishu-cards":["/studio/settings","飞书个人卡片"],
-  "/production/tasks":["/","全部任务"],
-  "/studio":["/production/create","内容进度"],
-  "/production/free":["/production/create","自由文章"],
-  "/production/accounts":["/studio/settings","账号常用设置"],
-  "/production/standards":["/studio/settings","质量标准"],
-  "/production/package":["/articles","配图与内容包"],
-  "/production/queue":["/","执行队列"],
-  "/studio/editor":["/articles","文章编辑器"],
-  "/examples":["/studio/settings","验收示例"],
-  "/quality":["/studio/settings","质量检查与诊断"],
-  "/practice":["/studio/settings","离线写作练习"],
-  "/quality/evaluation":["/studio/settings","人工评测"],
-  "/acceptance/compare":["/studio/settings","匿名比较"],
-  "/rag":["/studio/settings","知识检索"],
-  "/rules":["/studio/settings","账号规则"],
-  "/studio/experiment":["/studio/settings","真实协作实验"],
-  "/acceptance":["/studio/settings","工作台验收"],
-};
+import type {CreatorArea,CreatorSection,CreatorShortcut} from "@/types/creator-workspace";
+
+const sections:CreatorSection[]=[
+  {id:"today",href:"/",label:"今日待办",icon:"home"},
+  {id:"writing",href:"/articles",label:"写稿与精修",icon:"doc"},
+  {id:"materials",href:"/studio/settings",label:"账号与素材",icon:"book"},
+];
+const writing:CreatorShortcut[]=[
+  {href:"/production/create",label:"新建稿件"},{href:"/hot",label:"参考今日热点"},
+  {href:"/articles",label:"找稿和精修"},{href:"/production/queue",label:"查看进度"},
+];
+const materials:CreatorShortcut[]=[
+  {href:"/production/accounts",label:"管理账号"},{href:"/studio/cases",label:"查看写作素材"},
+  {href:"/production/rules",label:"编辑写作规范"},{href:"/studio/settings/calibration",label:"发布复盘"},
+];
+const systemPaths=new Set(["/quality","/practice","/acceptance","/examples","/rag","/rules","/studio/experiment",
+  "/studio/settings/doctor","/studio/settings/governance","/studio/settings/autopilot","/studio/settings/matrix","/studio/system"]);
+function areaFor(path:string):CreatorArea {
+  if(path==="/")return "today";
+  if([...systemPaths].some(base=>path===base||path.startsWith(base+"/")))return "system";
+  if(path.startsWith("/studio/settings")||["/studio/cases","/production/accounts","/production/rules","/production/standards"].includes(path))return "materials";
+  return "writing";
+}
 function NavigationFeedback(){
   const {pending}=useLinkStatus();
   return pending?<span className="rail-pending" aria-hidden="true"/>:null;
 }
 export default function Workspace({children,demo,real=false}:{children:React.ReactNode;demo:boolean;real?:boolean}){
   const path=usePathname();
-  const sub=childrenByPath[path];
-  const active=sections.find(s=>s.href===(sub?.[0]??path));
+  const area=areaFor(path),active=sections.find(s=>s.id===area);
+  const shortcuts=path==="/articles"?writing:path==="/studio/settings"?materials:[];
   return <div className="desk" onClickCapture={rememberArticleEntry} onKeyDownCapture={e=>{
     if(e.key==="Enter"&&(e.nativeEvent.isComposing||e.nativeEvent.keyCode===229))e.preventDefault();
   }}><aside className="rail"><div className="brand"><span aria-hidden="true">✎</span> AI Content OS</div>
-    <nav aria-label="工作空间">{sections.map(s=><Link key={s.href} href={s.href} aria-current={s===active?(sub?"location":"page"):undefined}><Icon type={s.icon}/>{s.name}<NavigationFeedback/></Link>)}</nav></aside>
-    <div className="content"><div className="crumb">{real?"隔离验收实例 · 真实 API":demo?"隔离验收实例 · 模拟数据":"个人空间"}　/　{active?.name}{sub&&"　/　"+sub[1]}</div>{children}</div>
+    <nav aria-label="工作空间">{sections.map(s=><Link key={s.href} href={s.href} aria-current={s===active?(path===s.href?"page":"location"):undefined}><Icon type={s.icon}/>{s.label}<NavigationFeedback/></Link>)}</nav></aside>
+    <div className="content"><div className="creator-topbar"><div className="crumb">{demo?"离线演练":real?"真实 API 验收":"个人空间"}{active&&" / "+active.label}</div>
+      <Link className="creator-system-link" href="/studio/system" aria-current={area==="system"?(path==="/studio/system"?"page":"location"):undefined}><Icon type="settings"/>系统机房<NavigationFeedback/></Link></div>
+      {shortcuts.length>0&&<nav className="creator-shortcuts" aria-label={active?.label}>{shortcuts.map(item=><Link key={item.href} href={item.href} aria-current={path===item.href?"page":undefined}>{item.label}<NavigationFeedback/></Link>)}</nav>}
+      {children}</div>
   </div>;
 }

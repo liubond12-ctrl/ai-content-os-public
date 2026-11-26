@@ -13,7 +13,7 @@ export default async function Settings({searchParams}:{searchParams:Promise<{run
   const sourceState=configured?(source.reason?"同步异常":source.success?"已同步":"已配置 · 待同步"):"未连接";
   const database=process.env.STUDIO_DB||"data/studio.sqlite";
   const dataDir=dirname(database).replaceAll("\\","/");
-  return <main className="dashboard"><header className="mast"><h1>工具与设置</h1></header>
+  return <main className="dashboard"><header className="mast"><h1>账号与素材</h1></header>
     <section className="surface business-sources" id="sources" aria-labelledby="business-source-heading">
     <h2 id="business-source-heading">飞书资料库 · {sourceState}</h2>
     <p>可从获授权的飞书表导入写法参考，活动、产品等业务事实请查阅原始记录。</p>
@@ -32,20 +32,8 @@ export default async function Settings({searchParams}:{searchParams:Promise<{run
       <li><Link href="/production/accounts">账号管理</Link></li>
       <li><Link href="/production/rules">写作规范</Link></li>
       <li><Link href="/production/standards">质量标准</Link></li>
-      <li><Link href="/studio/settings/feishu-cards">飞书通知设置与卡片预览</Link></li>
-      <li><Link href="/studio/settings/autopilot">模拟夜间巡航与飞书早报预览</Link></li>
-      <li><Link href="/studio/settings/calibration">发布复盘与规则校准</Link></li>
-      <li><Link href="/studio/settings/matrix">矩阵与装配记录</Link></li>
-    </ul></section>
-    <section className="surface"><h2>数据与备份</h2><ul>
-      <li><a href="#backup">备份与恢复</a></li>
-    </ul></section>
-    <section className="surface"><h2>开发与诊断</h2><ul>
-      <li><Link href="/studio/settings/doctor">System Doctor</Link></li>
-      <li><Link href="/studio/settings/governance">治理效果对比</Link></li>
-      <li><Link href="/quality">质量检查、模型实验与诊断</Link></li>
-      <li><Link href="/acceptance">验收报告</Link></li><li><Link href="/examples">验收示例</Link></li>
-      <li><Link href="/practice">离线写作练习</Link></li>
+      <li><Link href="/studio/cases">写作素材</Link></li>
+      <li><Link href="/studio/settings/calibration">发布复盘与写作规则</Link></li>
     </ul></section>
     <section className="surface" id="backup"><h2>备份与恢复</h2><p>可先用临时样本演练，再备份自己的任务与文章、参考库、调用回执、实验库及知识和向量索引。</p>
     <details><summary>备份自己的工作台</summary><ol><li>关闭工作台及写入程序，确认没有在途请求。选择私人目录下尚不存在的目标。</li><li>从项目目录运行预检，通过后备份。</li><li>恢复到另一个新目录，核对文章和版本，再手动决定是否切换。保留原目录。</li></ol>

@@ -38,7 +38,7 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
   const [data,setData] = useState(initial);
   const [error,setError] = useState("");
   const [paused,setPaused] = useState(false);
-  const [visible,setVisible] = useState(true);
+  const [visible,setVisible] = useState(false);
   const [strength,setStrength] = useState(.4);
   useEffect(() => {
     const controller = new AbortController();
@@ -57,40 +57,21 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
     },10000);
     return () => { controller.abort(); clearInterval(timer); };
   },[]);
-  const stats = [
-    {label:"待我处理", value:data.todoCount, unit:"项", filter:"todo", tone:"priority"},
-    {label:"活跃生产", value:data.activeCount, unit:"篇", filter:"active"},
-    {label:"当前受阻", value:data.counts["受阻"] || 0, unit:"篇", filter:"受阻", tone:data.counts["受阻"] ? "alert" : ""},
-    {label:"历史已定稿", value:data.counts["已定稿"] || 0, unit:"篇", filter:"已定稿"},
-    {label:"队列任务总数", value:data.total, unit:"篇", filter:""}
-  ];
   return <main className="cockpit-home">
     <CockpitOcean visible={visible} paused={paused} strength={strength} />
-    <details className="ck-settings"><summary>显示设置</summary><div>
-      <label><input type="checkbox" checked={visible} onChange={e=>setVisible(e.target.checked)} /> 显示背景海洋</label>
-      <label><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)} /> 静态阅读模式</label>
-      <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
-    </div></details>
-    <header className="ck-header"><h1>今天的内容工作</h1><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建内容</Link></div></header>
+    <header className="ck-header"><h1>今日待办</h1><div className="ck-shortcuts"><Link className="ck-hot" href="/hot"><Icon type="hot"/>今日热点</Link><Link className="ck-primary" href="/production/create">＋ 新建稿件</Link></div></header>
     <DailyDesk/>
-    <Link href="/studio/settings/autopilot">模拟夜间巡航与飞书早报预览 →</Link>
     {error && <p role="status">{error}</p>}
-    <section className="ck-work ck-todos" id="home-todos" tabIndex={-1}><RestoreArticlePosition prefix="todo-" fallback="home-todos"/><div className="ck-section-head"><h2>待我处理 {data.todoCount>0&&<small>{data.todoCount}</small>}</h2>
+    {data.todos.length>0&&<section className="ck-work ck-todos" id="home-todos" tabIndex={-1}><RestoreArticlePosition prefix="todo-" fallback="home-todos"/><div className="ck-section-head"><h2>待我处理 {data.todoCount>0&&<small>{data.todoCount}</small>}</h2>
       {data.todoCount>data.todos.length && <Link href="/production/tasks?status=todo">查看全部 →</Link>}</div>
       {data.todos.map(task=><PriorityCard key={task.id} task={task}/>)}
-      {!data.todos.length && <p className="ck-empty">当前没有待办</p>}
-    </section>
+    </section>}
     {data.recent.length>0&&<section className="ck-work ck-recent" aria-label="最近编辑" id="home-recent" tabIndex={-1}><RestoreArticlePosition prefix="recent-" fallback="home-recent"/>
       <div className="ck-section-head"><h2>最近编辑</h2></div>
       {data.recent.map(item=><Link className="ck-recent-item" id={"recent-"+item.id} key={item.id} href={item.isDraft?draftHref(item.id,item.kind,"/#recent-"+item.id):editorHref(item.id,"/#recent-"+item.id)}>
         <span className="ck-icon"><Icon type="doc"/></span><div className="ck-copy"><h3>{item.title}</h3><span className="ck-meta">{item.isDraft?"需求草稿":item.kind} · {item.updated&&new Date(item.updated).toLocaleString("zh-CN")}</span></div><span className="ck-secondary">继续编辑 →</span>
       </Link>)}
     </section>}
-    {data.total>0&&<><section className="ck-stats" aria-label="已进入生产队列的任务统计">{stats.map(s=>
-      <Link key={s.label} href={"/production/tasks"+(s.filter?"?status="+encodeURIComponent(s.filter):"")}>
-        <span>{s.label}</span><strong data-tone={s.tone}>{s.value}<small>{s.unit}</small></strong>
-      </Link>)}</section>
-    <p className="ck-meta">统计队列记录，含手写文章。需求草稿另列。待处理包括待审、受阻、失败和已停止的任务。</p></>}
     {data.groups.length>0&&<section className="ck-batch"><div className="ck-section-head"><h2>活跃生产批次</h2>
       {data.activeCount>data.groups.reduce((sum,g)=>sum+g.count,0) && <Link href="/production/tasks?status=active">查看全部 →</Link>}</div>
       {data.groups.map(g=>{
@@ -104,11 +85,16 @@ export default function Cockpit({ initial }: { initial: WorkOverview }) {
         </div>;
       })}
     </section>}
-    <details className="ck-flow" id="home-flow" tabIndex={-1} open={data.active.length>0 || undefined}><summary>内容生产全流程</summary>
+    <details className="ck-flow" id="home-flow" tabIndex={-1}><summary>查看稿件进度</summary>
       <RestoreArticlePosition prefix="home-flow" fallback="home-flow"/><WorkflowMap tasks={data.active} workerOnline={data.workerOnline} source="/#home-flow"/>
     </details>
     <footer className="ck-footer"><Link href="/production/tasks">全部任务与搜索 →</Link>
       <div><Link href="/articles">历史文章</Link><Link href="/production/queue">历史批次与队列操作</Link><Link href="/articles?status=需求草稿">需求草稿</Link></div>
     </footer>
+    <details className="ck-settings"><summary>显示设置</summary><div>
+      <label><input type="checkbox" checked={visible} onChange={e=>setVisible(e.target.checked)} /> 显示背景海洋</label>
+      <label><input type="checkbox" checked={paused} onChange={e=>setPaused(e.target.checked)} /> 静态阅读模式</label>
+      <label>背景强度<input type="range" min=".25" max="1" step=".05" value={strength} onChange={e=>setStrength(Number(e.target.value))} /></label>
+    </div></details>
   </main>;
 }

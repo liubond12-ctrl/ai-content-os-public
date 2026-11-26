@@ -25,7 +25,7 @@ export function MatrixWorkspace(){
   const active=data?.groups.find(row=>row.topic===topic)??data?.groups[0];
   const first=active?.tasks[0],second=active?.tasks.find(row=>row.account!==first?.account);
   const comparison=left&&right?textDiff(left.title+"\n"+left.body,right.title+"\n"+right.body):null;
-  return <main className="dashboard matrix-page"><header className="mast"><Link href="/studio/settings">返回工具与设置</Link><h1>矩阵与装配记录</h1></header>
+  return <main className="dashboard matrix-page"><header className="mast"><Link href="/studio/settings">返回工具与设置</Link><h1>同题稿件与资料使用记录</h1></header>
     {error&&<p role="alert">{error}</p>}
     <section className="surface" aria-labelledby="matrix-compare"><h2 id="matrix-compare">同题成稿对比</h2>
       <form className="matrix-filters" onSubmit={e=>{e.preventDefault();setTopic("");void load({q:query,...(account?{account}:{})});}}>

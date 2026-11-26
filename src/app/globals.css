@@ -1,6 +1,6 @@
 :root {
-  --ui-feedback-duration: 120ms;
-  --ui-feedback-easing: cubic-bezier(.2,.75,.3,1);
+  --ui-feedback-duration: 140ms;
+  --ui-feedback-easing: cubic-bezier(0.22,1,0.36,1);
   --sand: #e8dcc7;
   --oat: #d4b895;
   --sage: #8b9d83;
