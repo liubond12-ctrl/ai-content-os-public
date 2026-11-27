@@ -4,7 +4,13 @@ import {resolve,basename,dirname} from "node:path";
 import {references} from "./library";
 import type {Task} from "./tasks";
 export const cloudEndpoint="https://api.deepseek.com/chat/completions";
+export function isDeepSeekEndpoint(url:string|undefined){
+ return url===cloudEndpoint||url==="https://api.deepseek.com/v1/chat/completions";
+}
 export function cloudEnabled(){
+ if(process.env.STUDIO_DEMO_INSTANCE==="1")return false;
+ if(process.env.STUDIO_PRODUCTION_SCOPE==="deepseek-production")
+   return isDeepSeekEndpoint(process.env.STUDIO_MODEL_URL)&&!!process.env.STUDIO_MODEL_KEY?.trim();
  return process.env.STUDIO_PRODUCTION_SCOPE==="phase1-original-fiction"&&
  process.env.STUDIO_MODEL_URL===cloudEndpoint&&
  basename(dirname(resolve(/*turbopackIgnore: true*/ process.env.STUDIO_DB||"data/studio.sqlite")))==="data-production-real-phase1";

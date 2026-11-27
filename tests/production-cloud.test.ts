@@ -24,6 +24,28 @@ it("云端正式队列绑定快照、角色与模型，模拟传输验证全流�
  const changed=lookup(id)!;changed.input.topic="不同输入";expect(()=>assertCloudTask(changed)).toThrow("已变化");
  vi.stubEnv("STUDIO_MODEL","different");expect(()=>assertCloudTask(lookup(id)!)).toThrow("已变化");
 });
+it("正式 DeepSeek 支持 v1 地址，需明确授权，按正式目录绑定任务并使用 Bearer",async()=>{
+ setup();
+ vi.stubEnv("STUDIO_DB",join(mkdtempSync(join(tmpdir(),"deepseek-production-")),"studio.sqlite"));
+ vi.stubEnv("STUDIO_PRODUCTION_SCOPE","deepseek-production");
+ vi.stubEnv("STUDIO_MODEL_URL","https://api.deepseek.com/v1/chat/completions");
+ vi.stubEnv("STUDIO_MODEL_KEY","fixture-credential");
+ const d=saveProductionDraft({id:randomUUID(),version:0,intent:"queued",kind:"自由文章",topic:"虚构校样",sources:["scene-editing@1"]});
+ const input={id:randomUUID(),drafts:[d],preview:[previewDraft(d)],tokenLimit:120000,requestLimit:32};
+ expect(productionView()).toMatchObject({modelConfigured:true,mode:"真实云端"});
+ expect(()=>submitBatch(input)).toThrow("明确授权");
+ submitBatch({...input,authorizeText:true});
+ const requests=vi.fn(async(url,init)=>{
+   expect(String(url)).toBe("https://api.deepseek.com/v1/chat/completions");
+   expect(init.headers.Authorization).toBe("Bearer fixture-credential");
+   const m=JSON.parse(init.body).messages;
+   return Response.json({model:"deepseek-flash",usage:{prompt_tokens:100,completion_tokens:100,total_tokens:200},choices:[{finish_reason:"stop",message:{content:JSON.stringify(fixtureResponse(m[0].content,JSON.parse(m[1].content)))}}]});
+ });
+ vi.stubGlobal("fetch",requests);
+ for(let i=0;i<15&&productionView().queue[0].status==="排队";i++)await workerTick("cloud-production-test");
+ expect(productionView().queue[0].status,productionView().queue[0].reason).toBe("待人工审核");
+ expect(requests).toHaveBeenCalled();
+});
 it("未选资料、未许可资料及附件不能混入云端预检",()=>{
  setup();const base={id:randomUUID(),version:0,kind:"自由文章",topic:"原创表达"};
  expect(()=>previewDraft(saveProductionDraft(base))).toThrow("选择一条允许外发的写法参考");

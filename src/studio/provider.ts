@@ -1,5 +1,5 @@
 import {z} from "zod";
-import {assertCloudTask,cloudPayload} from "./production-cloud";
+import {assertCloudTask,cloudPayload,isDeepSeekEndpoint} from "./production-cloud";
 import {productionBudget} from "./production-schema";
 import {DatabaseSync} from "node:sqlite";
 import type {Task} from "./tasks";
@@ -29,8 +29,7 @@ function resolveTarget(raw:string){
   if(!/^https?:\/\//i.test(raw) || /[\\?#\s]/.test(raw) || raw.split("/")[2].includes("@"))throw denied();
   let url:URL;
   try{url=new URL(raw);}catch{throw denied();}
-  const deepseek=url.href==="https://api.deepseek.com/chat/completions" && raw.endsWith("/chat/completions") &&
-    /^https:\/\/api\.deepseek\.com(?::443)?\/chat\/completions$/i.test(raw);
+  const deepseek=isDeepSeekEndpoint(raw);
   if(!deepseek && !(url.protocol==="http:" && /^http:\/\/127\.0\.0\.1(?::\d+)?(?:\/|$)/i.test(raw)))throw denied();
   return {url,deepseek};
 }

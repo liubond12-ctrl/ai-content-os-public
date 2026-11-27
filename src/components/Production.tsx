@@ -275,7 +275,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
   const canRun=state==="ready";
   const readyToCheck=form.intent==="draft"&&!uploading;
   const singlePreview=preview?.[0];
-  const requiresAuthorization=data.mode==="真实云端"&&singlePreview?.authorBrief!==undefined&&!!singlePreview?.attachments.length;
+  const requiresAuthorization=data.mode==="真实云端";
   const account=data.accounts.find(a=>a.id===form.account);
   const effective=resolveBrief(form.brief??emptyBrief,{...form,audience:form.audience||account?.audience||""});
   async function persist(){
@@ -354,7 +354,8 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
           <button type="button" onClick={()=>change({chapters:undefined,budgetProfile:"protected"})}>关闭分章</button>
         </>:<button type="button" onClick={()=>change({budgetProfile:"local_extended",chapters:["问题与范围","证据与方法","行动与限制"].map(heading=>({id:crypto.randomUUID(),heading}))})}>按三章生成</button>}
       </details>}
-      {form.intent==="draft"&&<SingleBriefInput key={form.id+":"+form.account} draft={form} data={data} update={updateBrief} updateSources={sources=>change({sources})} updateBricks={bricks=>change({bricks})} loading={setUploading} disabled={busy||uploading||!connected} checking={checking}/>}
+      {data.mode==="真实云端"&&(form.kind==="图文"||form.kind==="自由文章")&&<details><summary>分章长文</summary><p>分章生成使用本机模型。当前可按大纲生成单篇全文。</p></details>}
+      {form.intent==="draft"&&<SingleBriefInput key={form.id+":"+form.account} draft={form} data={data} update={updateBrief} updateOutline={outline=>change({outline})} updateSources={sources=>change({sources})} updateBricks={bricks=>change({bricks})} loading={setUploading} disabled={busy||uploading||!connected} checking={checking}/>}
       {form.intent==="queued"&&<p>此稿在<Link href="/production/create?mode=batch#batch">待生产清单</Link>中，可在批量页提交或移出。</p>}
       <details><summary>排期与同题实验</summary><label>预定发布日期<input type="date" value={form.plannedDay??""} onChange={e=>change({plannedDay:e.target.value||undefined})}/></label>
         {!matches[0]?.length&&<label>同题实验目的<input maxLength={240} value={form.experiment??""} onChange={e=>change({experiment:e.target.value})}/></label>}</details>
@@ -373,7 +374,7 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
         {singlePreview?.resolved&&<div className="single-brief-confirm">
           <p>已选写作参考 {form.sources.length} 项。{singlePreview.illustrations?.length?`本机配图 ${singlePreview.illustrations.length} 项。`:""}</p>
           {singlePreview.attachments.length>0&&<ul>{singlePreview.attachments.map(a=><li key={a.id}>{a.name} · {a.purpose==="facts"?"作者提供，待核实":"只参考写法"} · {a.source}</li>)}</ul>}
-          {requiresAuthorization&&<label><input type="checkbox" checked={authorizeText} onChange={e=>setAuthorizeText(e.target.checked)}/>允许将上列文本材料发给 DeepSeek，用于本篇生成与审核</label>}
+          {requiresAuthorization&&<label><input type="checkbox" checked={authorizeText} onChange={e=>setAuthorizeText(e.target.checked)}/>允许将本篇要求和已选文本资料发送给 DeepSeek，用于生成与审核</label>}
         </div>}
         <details><summary>核对或调整本篇要求</summary>
           <div className="single-material-controls"><label>目标<input value={effective.goal} onChange={e=>{const goal=e.target.value;setForm(p=>({...p,brief:{...(p.brief??emptyBrief),adjust:{...p.brief?.adjust,goal}}}));setDirty(true);setAuthorizeText(false);}}/></label>
@@ -394,18 +395,19 @@ function Composer({data,free,busy,act,notify,refresh,connected,error}:{data:Prod
         <button className="primary" type="button" disabled={busy||!checkedSingle||!canRun||(requiresAuthorization&&!authorizeText)||!!matches[0]?.length&&!form.experiment?.trim()} aria-describedby="single-worker" onClick={()=>void submitSingle()}>确认并开始这篇内容</button>
       </section>}
       {form.intent!=="draft"?<DraftDetails draft={form} data={data} update={change} notify={notify}/>:
-        !!(form.requirements||form.outline||form.assets.length)&&<details><summary>旧草稿的原有要求与材料</summary><DraftDetails draft={form} data={data} update={change} notify={notify}/></details>}
+        !!(form.requirements||form.assets.length)&&<details><summary>旧草稿的原有要求与材料</summary><DraftDetails draft={form} data={data} update={change} notify={notify}/></details>}
       </fieldset>
     </form>}
     {batchMode&&<><details><summary>已保存的需求草稿</summary>{data.drafts.filter(d=>d.intent==="draft").map(d=><article key={d.id}><Link href={(d.kind==="自由文章"?"/production/free":"/production/create")+"?draft="+d.id}>{d.topic||"未命名"} · {d.kind}</Link><button disabled={busy} onClick={()=>act(async()=>{await api({action:"draft",value:{...d,intent:"queued"}});setSelected(ids=>ids===null?null:[...new Set([...ids,d.id])]);setPreview(null);})}>加入待生产清单</button><button disabled={busy} onClick={()=>{if(confirm("永久删除此需求草稿？"))void act(()=>api({action:"removeDraft",id:d.id,version:d.version}));}}>删除草稿</button></article>)}</details>
     <section id="batch"><h2>待生产清单 · {pending.length} 条</h2>{listed.map(d=><article className="queued-draft" key={d.id}><label><input type="checkbox" checked={selected===null||selected.includes(d.id)} onChange={e=>setSelected(e.target.checked?[...(selected??listed.map(d=>d.id)),d.id]:(selected??listed.map(d=>d.id)).filter(id=>id!==d.id))}/>{d.topic||"未填写选题"} · {data.accounts.find(a=>a.id===d.account)?.name??"自由创作"} · {d.platform} · {d.kind}</label><div className="draft-order-actions"><button disabled={busy} onClick={()=>moveDraft(d.id,-1)}>上移</button><button disabled={busy} onClick={()=>moveDraft(d.id,1)}>下移</button><Link href={(d.kind==="自由文章"?"/production/free":"/production/create")+"?draft="+d.id}>修改此草稿</Link><button disabled={busy} onClick={()=>act(()=>api({action:"draft",value:{...d,intent:"draft"}}))}>移出清单</button></div><details><summary>要求、大纲与附件</summary><p>{d.requirements||"未补充"}</p><p>{d.outline||"自动组织"}</p><p>已选附件 {d.assets.length} 项</p></details></article>)}
       {!checkedBatch&&<ReadinessNotice id="batch-readiness" state={state} scope="batch" refresh={refresh} basic={preview?.some(item=>!item.standards.length)??!data.standards.some(s=>s.status==="启用")}/>}
       <details><summary>批量运行限制</summary><div className="filters"><label>批次 Tokens 上限<input type="number" min={1000} max={2000000} value={tokenLimit} onChange={e=>{setTokenLimit(Number(e.target.value));setPreview(null);}}/></label><label>请求次数上限<input type="number" min={1} max={600} value={requestLimit} onChange={e=>{setRequestLimit(Number(e.target.value));setPreview(null);}}/></label></div></details>
-      <button className={preview?"":"primary"} disabled={busy||!connected||!pending.length} aria-describedby="batch-readiness" onClick={()=>act(async()=>{setPreview(await api({action:"preview",drafts:pending}));setMatches(await api({action:"matrix",drafts:pending}));setPreviewKey(signature(pending));})}>预检本批次资料与规范</button>
+      <button className={preview?"":"primary"} disabled={busy||!connected||!pending.length} aria-describedby="batch-readiness" onClick={()=>act(async()=>{setAuthorizeText(false);setPreview(await api({action:"preview",drafts:pending}));setMatches(await api({action:"matrix",drafts:pending}));setPreviewKey(signature(pending));})}>预检本批次资料与规范</button>
       {checkedBatch&&<div id="batch-preview" tabIndex={-1}><h3>生产顺序</h3><p>{pending.length} 条 · {data.mode} · 最短约 {pending.length*4} 次请求；含研究、事实核验、讨论及两轮修订最多按 {pending.length*22} 次规划，实际按需执行。当前批次上限 {requestLimit} 次 / {tokenLimit} Tokens，失败与未知用量保守占额。{requestLimit<pending.length*22?"当前预算不保证覆盖完整分歧与修订，触顶转人工，不自动扩额。":""}</p><ProductionCost mode={data.mode}/><ol>{pending.map((d,i)=><li key={d.id}><strong>{d.topic}</strong> · {d.kind} · {data.accounts.find(a=>a.id===d.account)?.name||"自由创作"} · {d.platform||"不限平台"}<p>规范：{preview[i]?.rules.map(r=>r.name+" v"+r.version).join("、")||"未配置"}；质量标准：{preview[i]?.standards.map(r=>r.name+" v"+r.version).join("、")||"未配置，仅基础检查"}；参考 {d.sources.length} 条，附件 {d.assets.length} 项。</p></li>)}</ol><details><summary>诊断用完整快照</summary><pre>{JSON.stringify(preview,null,2)}</pre></details>
         <ReadinessNotice id="batch-readiness" state={state} scope="batch" refresh={refresh} basic={preview?.some(item=>!item.standards.length)}/>
         {matches.map((hits,index)=>hits.length>0&&<div key={pending[index]?.id}><strong>{pending[index]?.topic} · 可能撞车</strong><MatrixHits hits={hits}/></div>)}
-        <button className="primary" disabled={busy||!connected||!data.modelConfigured||pending.some((draft,index)=>matches[index]?.length&&!draft.experiment)} aria-describedby="batch-readiness" onClick={()=>act(async()=>{const submitted=await api({action:"batch",id:batchId,drafts:pending,tokenLimit,requestLimit,preview});setPreview(null);setSelected(null);setBatchId(crypto.randomUUID());notify("已提交，后台继续执行。");router.push("/production/queue?batch="+encodeURIComponent(submitted.id));})}>确认并开始批量生产</button></div>}
+        {data.mode==="真实云端"&&<label><input type="checkbox" checked={authorizeText} onChange={e=>setAuthorizeText(e.target.checked)}/>允许将本批稿件要求和已选资料发送给 DeepSeek</label>}
+        <button className="primary" disabled={busy||!connected||!data.modelConfigured||data.mode==="真实云端"&&!authorizeText||pending.some((draft,index)=>matches[index]?.length&&!draft.experiment)} aria-describedby="batch-readiness" onClick={()=>act(async()=>{const submitted=await api({action:"batch",id:batchId,drafts:pending,tokenLimit,requestLimit,preview,authorizeText});setPreview(null);setSelected(null);setBatchId(crypto.randomUUID());notify("已提交，后台继续执行。");router.push("/production/queue?batch="+encodeURIComponent(submitted.id));})}>确认并开始批量生产</button></div>}
       <Link href="/">回到首页查看进度</Link>
     </section></>}
   </>;

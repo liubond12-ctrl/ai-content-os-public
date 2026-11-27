@@ -44,6 +44,9 @@ if(demo){
  env.NODE_OPTIONS=[process.env.NODE_OPTIONS,"--require=\""+guard+"\""].filter(Boolean).join(" ");
  env.STUDIO_DEMO_NET_LOG=path.join(dir,"network-guard.jsonl");
 }
+if(!demo&&!env.STUDIO_PRODUCTION_SCOPE&&env.STUDIO_MODEL_KEY?.trim()&&
+ ["https://api.deepseek.com/chat/completions","https://api.deepseek.com/v1/chat/completions"].includes(env.STUDIO_MODEL_URL))
+ env.STUDIO_PRODUCTION_SCOPE="deepseek-production";
 const children=[];
 function start(args){const c=spawn(process.execPath,args,{windowsHide:true,stdio:"inherit",env});children.push(c);return c;}
 if(demo&&!process.argv.includes("--no-model"))start(["scripts/production-demo-model.mjs"]);

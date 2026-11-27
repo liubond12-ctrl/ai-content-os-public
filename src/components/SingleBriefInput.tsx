@@ -12,7 +12,7 @@ const purpose={facts:"本次事实资料",style:"只参考写法",image:"只作�
 
 import type {AtomicBrick,BrickPin} from "@/types/calibration";
 
-export function SingleBriefInput({draft,data,update,updateSources,updateBricks,loading,disabled,checking}:{draft:ProductionDraft;data:ProductionView;update:Update;updateSources:(sources:string[])=>void;updateBricks:(bricks:BrickPin[])=>void;loading:(value:boolean)=>void;disabled:boolean;checking:boolean}){
+export function SingleBriefInput({draft,data,update,updateOutline,updateSources,updateBricks,loading,disabled,checking}:{draft:ProductionDraft;data:ProductionView;update:Update;updateOutline:(outline:string)=>void;updateSources:(sources:string[])=>void;updateBricks:(bricks:BrickPin[])=>void;loading:(value:boolean)=>void;disabled:boolean;checking:boolean}){
   const input=draft.brief??emptyBrief;
   const file=useRef<HTMLInputElement>(null),loadingFiles=useRef(false);
   const [drag,setDrag]=useState(false),[progress,setProgress]=useState(""),[notice,setNotice]=useState("");
@@ -52,7 +52,7 @@ export function SingleBriefInput({draft,data,update,updateSources,updateBricks,l
   function material(id:string,patch:Partial<SingleBrief["materials"][number]>){update(p=>({...p,materials:p.materials.map(a=>a.id===id?{...a,...patch}:a)}));}
   const selected=input.materials.find(item=>item.id===panel);
   const failed=input.failed.find(item=>"failed:"+item.name===panel);
-  const dialogTitle=selected?.name||failed?.name||(panel==="bricks"?"素材积木":"引用稿件或资料");
+  const dialogTitle=selected?.name||failed?.name||(panel==="bricks"?"素材积木":panel==="writing-details"?"受众与大纲":"引用稿件或资料");
   const pins=draft.bricks??[];
   const [brickQuery,setBrickQuery]=useState(""),[bricks,setBricks]=useState<AtomicBrick[]>([]),[brickMessage,setBrickMessage]=useState("");
   async function findBricks(q=brickQuery){
@@ -99,6 +99,7 @@ export function SingleBriefInput({draft,data,update,updateSources,updateBricks,l
       <div className="chat-add-menu" onKeyDown={e=>{if(e.key==="Escape")setMenu(false);}}>
         <button type="button" className="chat-plus" aria-label="添加附件或引用" aria-expanded={menu} disabled={disabled} onClick={()=>setMenu(value=>!value)}>＋</button>
         {menu&&<div className="chat-add-options">
+          <button type="button" onClick={()=>{setMenu(false);setPanel("writing-details");}}>填写受众与大纲</button>
           <button type="button" onClick={()=>{setMenu(false);file.current?.click();}}>上传文件</button>
           <button type="button" onClick={()=>{setMenu(false);setPanel("references");}}>引用稿件或资料</button>
           {draft.account&&data.mode!=="真实云端"&&<button type="button" onClick={()=>{setMenu(false);setPanel("bricks");void findBricks("");}}>选用素材积木</button>}
@@ -110,6 +111,10 @@ export function SingleBriefInput({draft,data,update,updateSources,updateBricks,l
     {panel&&<dialog className="chat-material-dialog" aria-labelledby="chat-material-title" onClose={()=>setPanel(null)}
       ref={node=>{if(node&&!node.open)node.showModal();}}>
       <header><h2 id="chat-material-title">{dialogTitle}</h2><button type="button" className="chat-close" onClick={()=>setPanel(null)} aria-label="关闭">×</button></header>
+      {panel==="writing-details"&&<>
+        <label>受众<input maxLength={300} value={input.adjust.audience??draft.audience??""} onChange={e=>{const audience=e.target.value;update(p=>({...p,adjust:{...p.adjust,audience}}));}}/></label>
+        <label>大纲<textarea maxLength={4000} value={draft.outline??""} onChange={e=>updateOutline(e.target.value)}/></label>
+      </>}
       {selected&&<>
         <p>{selected.purpose==="image"?"仅本机配图，未读取截图文字。":selected.mime.startsWith("image/")?"模型只使用你填写的文字。":"已读取文本。"}</p>
         <p><a href={"/api/production/assets?id="+selected.id} target="_blank" rel="noreferrer">打开原文件预览 ↗</a></p>

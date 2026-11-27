@@ -34,3 +34,4 @@ network-guard.jsonl
 *.db
 *.key
 *.pem
+/启动正式版.bat

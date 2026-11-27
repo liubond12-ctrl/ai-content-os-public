@@ -231,6 +231,8 @@ export function submitBatch(input:{id:string;drafts:ProductionDraft[];tokenLimit
   if(input.autopilot&&mode==="真实云端")throw Error("无人值守预生产不提交云端模型。");
   const previews=input.drafts.map(d=>previewDraft(d));
   if(JSON.stringify(previews)!==JSON.stringify(input.preview))throw Error("账号、资料或规范已变化，请重新预检");
+  if(cloudEnabled()&&process.env.STUDIO_PRODUCTION_SCOPE==="deepseek-production"&&input.authorizeText!==true)
+    throw Error("请明确授权将本次稿件要求与获准使用的资料发送给 DeepSeek");
   if(cloudEnabled()&&previews.some(p=>p.authorBrief!==undefined&&p.attachments.length)&&(!single||input.authorizeText!==true))throw Error("请在单篇确认页明确授权本次文本材料发送给 DeepSeek");
   const db=productionDb();
   try{

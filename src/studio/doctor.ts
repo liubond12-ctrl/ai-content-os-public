@@ -1,3 +1,4 @@
+import {cloudEnabled,isDeepSeekEndpoint} from "./production-cloud";
 import {z} from "zod";
 import {lightRoute,routePlan} from "./model-routing";
 import {cardDb,prefs} from "./feishu-cards";
@@ -8,6 +9,8 @@ const loopback=/^http:\/\/127\.0\.0\.1(?::\d+)?\/(?!\/)[^@?#\\\s]*$/;
 async function probeModel(name:string,plan:ReturnType<typeof routePlan>|undefined,request:typeof fetch):Promise<DoctorCheck>{
   const next="核对模型 ID、127.0.0.1 URL 与服务端口；启动本机模型后重测。";
   if(!plan?.model)return {name,status:"未配置",basis:"启动配置",detail:"缺少模型 ID 或轻量地址。",next};
+  if(isDeepSeekEndpoint(plan.url)&&cloudEnabled()&&process.env.STUDIO_MODEL_KEY?.trim())
+    return {name,status:"待授权验证",basis:"云端配置已就绪",detail:"DeepSeek 地址、模型名和密钥已配置。",next:"可提交已授权稿件，使用实际回执核对鉴权与可用性。"};
   if(!loopback.test(plan.url))return {name,status:"待授权验证",basis:"目标配置",detail:"远端请求属于单独的授权联调。",next:"在批准的工作台生产入口核对模型回执。"};
   try{
     const result=await request(plan.url,{method:"POST",headers:{"Content-Type":"application/json"},redirect:"error",signal:AbortSignal.timeout(4500),
